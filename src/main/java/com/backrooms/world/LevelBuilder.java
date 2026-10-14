@@ -22,7 +22,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +31,8 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * Membangun isi sebuah dimensi pada kunjungan pertamanya.
+ * Membangun isi sebuah {@link BuildArea} (bangunan utama, set lobby, atau
+ * Backrooms milik sebuah room) saat pertama dibutuhkan.
  *
  * <h2>Kenapa dicicil per tick</h2>
  *
@@ -40,6 +41,7 @@ import java.util.function.Consumer;
  * mematikannya. Jadi pekerjaannya dipecah per chunk dan dijalankan selama
  * maksimal {@link #BUDGET_NANOS} per tick; pemain yang meminta masuk
  * menunggu dengan progres di action bar, lalu dipindahkan begitu selesai.
+ * Antrian dikerjakan satu per satu sesuai urutan masuk.
  *
  * <h2>Urutan</h2>
  *
@@ -55,37 +57,80 @@ public final class LevelBuilder {
     private static final TicketType<ChunkPos> TICKET =
             TicketType.create("backrooms_build", Comparator.comparingLong(ChunkPos::toLong), 200);
 
-    private static final Map<BackroomsLevel, Job> JOBS = new EnumMap<>(BackroomsLevel.class);
-    private static final Deque<BackroomsLevel> ORDER = new ArrayDeque<>();
+    private record Key(BackroomsLevel which, int slot) {
+        static Key of(BuildArea area) {
+            return new Key(area.which(), area.slot());
+        }
+    }
+
+    private static final Map<Key, Job> JOBS = new HashMap<>();
+    private static final Deque<Key> ORDER = new ArrayDeque<>();
 
     private LevelBuilder() {}
 
-    public static boolean isBuilding(BackroomsLevel level) {
-        return JOBS.containsKey(level);
+    public static boolean isBuilding(BuildArea area) {
+        return JOBS.containsKey(Key.of(area));
+    }
+
+    public static boolean isBuildingAnything() {
+        return !JOBS.isEmpty();
+    }
+
+    public static boolean isBuilt(MinecraftServer server, BuildArea area) {
+        ServerLevel level = server.getLevel(area.dimension());
+        return level != null && BuildState.get(level).isBuilt(area.buildKey());
+    }
+
+    /** Persen selesai (0-99) selama dibangun, 100 kalau sudah jadi, -1 kalau belum dimulai. */
+    public static int progress(MinecraftServer server, BuildArea area) {
+        Job job = JOBS.get(Key.of(area));
+        if (job != null) return (int) Math.min(99L, 100L * job.done / Math.max(1, job.total));
+        return isBuilt(server, area) ? 100 : -1;
     }
 
     /**
-     * Pastikan level sudah dibangun, lalu jalankan {@code whenReady} untuk
+     * Pastikan area sudah dibangun, lalu jalankan {@code whenReady} untuk
      * pemain ini. Kalau sudah dibangun, langsung dijalankan.
      */
-    public static void ensureBuilt(MinecraftServer server, BackroomsLevel which, ServerPlayer player,
+    public static void ensureBuilt(MinecraftServer server, BuildArea area, ServerPlayer player,
                                    Consumer<ServerPlayer> whenReady) {
-        ServerLevel level = server.getLevel(which.dimension());
+        ServerLevel level = server.getLevel(area.dimension());
         if (level == null) {
-            player.sendSystemMessage(Component.literal("Dimensi " + which.dimension().location()
+            player.sendSystemMessage(Component.literal("Dimensi " + area.dimension().location()
                     + " tidak ada. Datapack mod ini gagal dimuat? Cek log server.").withStyle(ChatFormatting.RED));
             return;
         }
-        if (BuildState.get(level).isBuilt()) {
+        if (BuildState.get(level).isBuilt(area.buildKey())) {
             whenReady.accept(player);
             return;
         }
-        Job job = start(which, level);
+        Job job = start(area, level);
         job.waiting.add(player.getUUID());
         job.callbacks.put(player.getUUID(), whenReady);
-        player.sendSystemMessage(Component.literal(which.displayName()
+        player.sendSystemMessage(Component.literal(area.which().displayName()
                 + " belum pernah dikunjungi, sedang dibangun... kamu akan dipindahkan otomatis.")
                 .withStyle(ChatFormatting.YELLOW));
+    }
+
+    /**
+     * Bangun tanpa pemain yang menunggu. {@code onDone} dijalankan begitu
+     * selesai (langsung, kalau sudah pernah dibangun); {@code onFail} kalau
+     * gagal.
+     */
+    public static void build(MinecraftServer server, BuildArea area, Runnable onDone, Runnable onFail) {
+        ServerLevel level = server.getLevel(area.dimension());
+        if (level == null) {
+            LOGGER.error("Dimensi {} tidak ada, {} tidak bisa dibangun.", area.dimension().location(), area.describe());
+            onFail.run();
+            return;
+        }
+        if (BuildState.get(level).isBuilt(area.buildKey())) {
+            onDone.run();
+            return;
+        }
+        Job job = start(area, level);
+        job.onDone.add(onDone);
+        job.onFail.add(onFail);
     }
 
     /**
@@ -93,30 +138,31 @@ public final class LevelBuilder {
      *
      * @return pesan status untuk ditampilkan ke yang meminta
      */
-    public static String prebuild(MinecraftServer server, BackroomsLevel which) {
-        ServerLevel level = server.getLevel(which.dimension());
-        if (level == null) return "Dimensi " + which.dimension().location() + " tidak ada.";
-        if (BuildState.get(level).isBuilt()) return which.displayName() + " sudah dibangun.";
-        boolean already = JOBS.containsKey(which);
-        Job job = start(which, level);
-        return already ? which.displayName() + " sedang dibangun (" + (100L * job.done / job.total) + "%)."
-                : which.displayName() + " mulai dibangun (" + job.total + " langkah), selesai dicatat di log.";
+    public static String prebuild(MinecraftServer server, BuildArea area) {
+        ServerLevel level = server.getLevel(area.dimension());
+        if (level == null) return "Dimensi " + area.dimension().location() + " tidak ada.";
+        if (BuildState.get(level).isBuilt(area.buildKey())) return area.describe() + " sudah dibangun.";
+        boolean already = JOBS.containsKey(Key.of(area));
+        Job job = start(area, level);
+        return already ? area.describe() + " sedang dibangun (" + (100L * job.done / job.total) + "%)."
+                : area.describe() + " mulai dibangun (" + job.total + " langkah), selesai dicatat di log.";
     }
 
-    private static Job start(BackroomsLevel which, ServerLevel level) {
-        return JOBS.computeIfAbsent(which, key -> {
-            Job job = new Job(key, level);
+    private static Job start(BuildArea area, ServerLevel level) {
+        return JOBS.computeIfAbsent(Key.of(area), key -> {
+            Job job = new Job(area, level);
             ORDER.add(key);
-            LOGGER.info("Mulai membangun {} ({} langkah).", key.displayName(), job.total);
+            LOGGER.info("Mulai membangun {} ({} langkah).", area.describe(), job.total);
             return job;
         });
     }
 
     /** Dipanggil tiap akhir tick server. */
     public static void tick(MinecraftServer server) {
-        BackroomsLevel which = ORDER.peek();
-        if (which == null) return;
-        Job job = JOBS.get(which);
+        Key key = ORDER.peek();
+        if (key == null) return;
+        Job job = JOBS.get(key);
+        String name = job.area.describe();
 
         long deadline = System.nanoTime() + BUDGET_NANOS;
         try {
@@ -125,27 +171,29 @@ public final class LevelBuilder {
                 job.done++;
             }
         } catch (Exception e) {
-            LOGGER.error("Gagal membangun {}", which.displayName(), e);
-            job.notifyAll(server, Component.literal("Gagal membangun " + which.displayName()
+            LOGGER.error("Gagal membangun {}", name, e);
+            job.notifyAll(server, Component.literal("Gagal membangun " + job.which.displayName()
                     + ", lihat log server.").withStyle(ChatFormatting.RED));
-            JOBS.remove(which);
+            JOBS.remove(key);
             ORDER.poll();
+            job.onFail.forEach(Runnable::run);
             return;
         }
 
         if (job.steps.isEmpty()) {
-            BuildState.get(job.level).markBuilt();
-            LOGGER.info("{} selesai dibangun dalam {} detik.", which.displayName(),
+            BuildState.get(job.level).markBuilt(job.area.buildKey());
+            LOGGER.info("{} selesai dibangun dalam {} detik.", name,
                     (System.currentTimeMillis() - job.startedAt) / 1000);
-            JOBS.remove(which);
+            JOBS.remove(key);
             ORDER.poll();
             for (UUID id : job.waiting) {
                 ServerPlayer player = server.getPlayerList().getPlayer(id);
                 if (player != null) job.callbacks.get(id).accept(player);
             }
+            job.onDone.forEach(Runnable::run);
         } else if (server.getTickCount() % 10 == 0) {
             int percent = (int) (100L * job.done / job.total);
-            job.actionBar(server, Component.literal("Membangun " + which.displayName() + "... " + percent + "%")
+            job.actionBar(server, Component.literal("Membangun " + job.which.displayName() + "... " + percent + "%")
                     .withStyle(ChatFormatting.GOLD));
         }
     }
@@ -176,24 +224,28 @@ public final class LevelBuilder {
     }
 
     private static final class Job {
+        final BuildArea area;
         final BackroomsLevel which;
         final ServerLevel level;
         final Deque<Runnable> steps = new ArrayDeque<>();
         final Set<UUID> waiting = new LinkedHashSet<>();
-        final Map<UUID, Consumer<ServerPlayer>> callbacks = new java.util.HashMap<>();
+        final Map<UUID, Consumer<ServerPlayer>> callbacks = new HashMap<>();
+        final List<Runnable> onDone = new ArrayList<>();
+        final List<Runnable> onFail = new ArrayList<>();
         final long startedAt = System.currentTimeMillis();
         final int total;
         int done;
 
-        Job(BackroomsLevel which, ServerLevel level) {
-            this.which = which;
+        Job(BuildArea area, ServerLevel level) {
+            this.area = area;
+            this.which = area.which();
             this.level = level;
             LevelGenerator generator = which.newGenerator();
-            BuildLevel world = new BuildLevel(level, which.offsetX(), which.offsetZ());
+            BuildLevel world = new BuildLevel(level, area.offsetX(), area.offsetZ());
 
             List<ChunkPos> chunks = new ArrayList<>();
-            for (int cz = which.minChunkZ(); cz <= which.maxChunkZ(); cz++) {
-                for (int cx = which.minChunkX(); cx <= which.maxChunkX(); cx++) {
+            for (int cz = area.minChunkZ(); cz <= area.maxChunkZ(); cz++) {
+                for (int cx = area.minChunkX(); cx <= area.maxChunkX(); cx++) {
                     chunks.add(new ChunkPos(cx, cz));
                 }
             }
@@ -233,10 +285,10 @@ public final class LevelBuilder {
          */
         void addSealSteps() {
             Block wall = which.sealBlock();
-            int minX = which.worldMinX();
-            int maxX = which.worldMaxX();
-            int minZ = which.worldMinZ();
-            int maxZ = which.worldMaxZ();
+            int minX = area.worldMinX();
+            int maxX = area.worldMaxX();
+            int minZ = area.worldMinZ();
+            int maxZ = area.worldMaxZ();
             List<long[]> columns = new ArrayList<>();
             for (int x = minX; x <= maxX; x++) {
                 columns.add(new long[]{x, minZ});
@@ -269,17 +321,17 @@ public final class LevelBuilder {
 
         /** Tahan chunk sekitar tetap termuat selama dikerjakan, supaya tidak bolak-balik dibaca dari disk. */
         void hold(ChunkPos chunk) {
-            ChunkPos real = new ChunkPos(new BlockPos(chunk.getMinBlockX() + which.offsetX(), 0,
-                    chunk.getMinBlockZ() + which.offsetZ()));
+            ChunkPos real = new ChunkPos(new BlockPos(chunk.getMinBlockX() + area.offsetX(), 0,
+                    chunk.getMinBlockZ() + area.offsetZ()));
             level.getChunkSource().addRegionTicket(TICKET, real, 3, real);
         }
 
         /** Dinding barrier tak terlihat satu blok di luar area bangunan. */
         void addBarrierSteps() {
-            int minX = which.worldMinX() - 1;
-            int maxX = which.worldMaxX() + 1;
-            int minZ = which.worldMinZ() - 1;
-            int maxZ = which.worldMaxZ() + 1;
+            int minX = area.worldMinX() - 1;
+            int maxX = area.worldMaxX() + 1;
+            int minZ = area.worldMinZ() - 1;
+            int maxZ = area.worldMaxZ() + 1;
             BlockState barrier = Blocks.BARRIER.defaultBlockState();
             for (int x = minX; x <= maxX; x += 16) {
                 int from = x;

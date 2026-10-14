@@ -16,6 +16,7 @@
     "ForgeGuiMixin",
     "GameRendererMixin",
     "GuiMixin",
+    "ItemInHandLayerMixin",
     "ItemInHandRendererMixin",
     "LevelRendererAccessor",
     "LevelRendererMixin",
@@ -33,6 +34,7 @@
     "veil.InstancedPointLightRendererMixin",
     "veil.LightRendererMixin",
     "veil.MutableUniformAccessMixin",
+    "veil.PathAccessor",
     "veil.VeilShadersMixin"
   ],
   "injectors": {

@@ -50,8 +50,8 @@ public final class Flashlight {
     }
 
     /** Level asli punya {@code allowsTorch()}: hanya Poolrooms yang melarang. */
-    static boolean allowsTorch(ResourceKey<Level> dimension) {
-        return dimension != BackroomsLevel.POOLROOMS.dimension();
+    static boolean allowsTorch(Player player) {
+        return BackroomsLevel.at(player.level(), player.getX()) != BackroomsLevel.POOLROOMS;
     }
 
     static Component notAllowedMessage() {
@@ -61,7 +61,7 @@ public final class Flashlight {
 
     private static boolean knownLevel(ResourceKey<Level> dimension) {
         return dimension == Level.OVERWORLD || dimension == Level.NETHER || dimension == Level.END
-                || BackroomsLevel.byDimension(dimension) != null;
+                || dimension == BackroomsLevel.LOBBY || BackroomsLevel.byDimension(dimension) != null;
     }
 
     /** Dipanggil tiap akhir tick klien. */
@@ -74,7 +74,7 @@ public final class Flashlight {
         if (ModKeyBinds.TOGGLE_FLASHLIGHT.consumeClick()) {
             press(player, !isOn(player));
         }
-        if (!allowsTorch(dimension)) {
+        if (!allowsTorch(player)) {
             if (isOn(player)) {
                 ModNetwork.CHANNEL.sendToServer(new FlashlightC2S(false));
             }
@@ -85,7 +85,7 @@ public final class Flashlight {
     /** Sama dengan menekan tombol senter; {@code target} = status yang diminta. */
     public static void press(LocalPlayer player, boolean target) {
         player.playSound(ModSounds.event("flashlight_click"), 0.5F, 1.0F);
-        if (allowsTorch(player.level().dimension())) {
+        if (allowsTorch(player)) {
             setOn(player.getUUID(), target);
             CameraEffect.disableFlashlightHint();
             if (!player.isSpectator()) {

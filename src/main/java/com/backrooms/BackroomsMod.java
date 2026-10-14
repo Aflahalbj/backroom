@@ -9,6 +9,7 @@ import com.backrooms.block.entity.ModBlockEntities;
 import com.backrooms.command.BackroomCommand;
 import com.backrooms.config.BackroomsConfig;
 import com.backrooms.item.ModItems;
+import com.backrooms.lobby.LobbyManager;
 import com.backrooms.sound.ModSounds;
 import com.backrooms.world.LevelBuilder;
 import com.backrooms.world.SelfTest;
@@ -29,8 +30,8 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
  * Port Forge dari blok, struktur, dan generator level SP-Backrooms Revamped,
  * dalam bentuk tiga dimensi void yang dibangun saat pertama dikunjungi,
  * plus efek kamera VHS dan senter aslinya (di atas Veil).
- * Masuk lewat {@code /backroom gotolevel0} dst., keluar lewat
- * {@code /backroom gotoworld}.
+ * Pemain masuk ke lobby begitu join, lalu ke Backrooms lewat room
+ * (lihat {@link LobbyManager}); {@code /backroom gotolevel0} dst. tetap ada.
  */
 @Mod(BackroomsMod.MOD_ID)
 public class BackroomsMod {
@@ -49,6 +50,7 @@ public class BackroomsMod {
         ModNetwork.register();
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> com.backrooms.client.CameraEffect::init);
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(LobbyManager.class);
     }
 
     @SubscribeEvent
@@ -60,6 +62,7 @@ public class BackroomsMod {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             LevelBuilder.tick(event.getServer());
+            LobbyManager.tick(event.getServer());
             SelfTest.tick(event.getServer());
         }
     }
@@ -67,6 +70,7 @@ public class BackroomsMod {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         StructureCheck.run(event.getServer());
+        LobbyManager.onServerStarted(event.getServer());
         if (SelfTest.enabled()) {
             SelfTest.start(event.getServer());
         }
@@ -75,5 +79,6 @@ public class BackroomsMod {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         LevelBuilder.clear();
+        LobbyManager.clear();
     }
 }

@@ -36,7 +36,7 @@ public class FluorescentLightSoundInstance extends AbstractTickableSoundInstance
     @Override
     public void tick() {
         Level world = this.entity.getLevel();
-        if (this.player.level().dimension() == BackroomsLevel.LEVEL0.dimension() && world != null) {
+        if (BackroomsLevel.at(this.player.level(), this.player.getX()) == BackroomsLevel.LEVEL0 && world != null) {
             if (!this.entity.isRemoved() && this.entity.getBlockPos().closerToCenterThan(this.player.position(), 16.0D)
                     && this.entity.currentState == ModBlocks.FLUORESCENT_LIGHT.get().defaultBlockState().setValue(Lights.ON, true)
                     && !this.entity.currentState.getValue(Lights.BLACKOUT) && !CameraEffect.blackScreen) {

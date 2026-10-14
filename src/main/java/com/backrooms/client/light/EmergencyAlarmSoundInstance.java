@@ -36,7 +36,7 @@ public class EmergencyAlarmSoundInstance extends AbstractTickableSoundInstance {
     @Override
     public void tick() {
         Level world = this.entity.getLevel();
-        if (world != null && world.dimension() == BackroomsLevel.LEVEL0.dimension()) {
+        if (world != null && BackroomsLevel.at(world, this.entity.getBlockPos().getX()) == BackroomsLevel.LEVEL0) {
             if (!this.entity.isRemoved() && this.entity.getBlockPos().closerToCenterThan(this.player.position(), 80.0D)
                     && !CameraEffect.blackScreen) {
                 this.pitch = 1.0F;

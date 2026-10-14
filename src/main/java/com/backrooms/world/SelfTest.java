@@ -1,6 +1,8 @@
 package com.backrooms.world;
 
 import com.backrooms.block.ModBlocks;
+import com.backrooms.lobby.LobbyManager;
+import com.backrooms.lobby.LobbyStage;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -15,8 +17,8 @@ import java.util.TreeMap;
 
 /**
  * Uji otomatis untuk development: {@code gradlew runServer -Pselftest=true}.
- * Membangun keenam level, mencatat isi tiap level ke log, lalu mematikan
- * server. Tidak aktif di permainan biasa.
+ * Membangun ketiga level (plus set lobby-nya), mencatat isi tiap level ke
+ * log, lalu mematikan server. Tidak aktif di permainan biasa.
  */
 public final class SelfTest {
 
@@ -33,29 +35,32 @@ public final class SelfTest {
         running = true;
         ModelCheck.run();
         for (BackroomsLevel level : BackroomsLevel.values()) {
-            LOGGER.info("[selftest] {}", LevelBuilder.prebuild(server, level));
+            LOGGER.info("[selftest] {}", LevelBuilder.prebuild(server, BuildArea.main(level)));
         }
     }
 
     public static void tick(MinecraftServer server) {
         if (!running) return;
-        for (BackroomsLevel level : BackroomsLevel.values()) {
-            if (LevelBuilder.isBuilding(level)) return;
-        }
+        if (LevelBuilder.isBuildingAnything()) return;
         running = false;
         for (BackroomsLevel which : BackroomsLevel.values()) {
-            report(server.getLevel(which.dimension()), which);
+            report(server.getLevel(which.dimension()), BuildArea.main(which));
+            report(server.getLevel(BuildArea.lobby(which).dimension()), BuildArea.lobby(which));
+            LobbyStage stage = LobbyManager.stage(which);
+            LOGGER.info("[selftest] {} lobby: panggung {}", which.displayName(),
+                    stage == null ? "BELUM ADA" : stage.pos().toShortString() + " menghadap " + stage.facing());
         }
         LOGGER.info("[selftest] selesai, server dimatikan.");
         server.halt(false);
     }
 
-    private static void report(ServerLevel level, BackroomsLevel which) {
+    private static void report(ServerLevel level, BuildArea area) {
+        BackroomsLevel which = area.which();
         Map<String, Integer> counts = new TreeMap<>();
         int total = 0;
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
-        for (int x = which.worldMinX(); x <= which.worldMaxX(); x++) {
-            for (int z = which.worldMinZ(); z <= which.worldMaxZ(); z++) {
+        for (int x = area.worldMinX(); x <= area.worldMaxX(); x++) {
+            for (int z = area.worldMinZ(); z <= area.worldMaxZ(); z++) {
                 for (int y = which.barrierMinY(); y <= which.barrierMaxY(); y++) {
                     BlockState state = level.getBlockState(pos.set(x, y, z));
                     if (state.isAir()) continue;
@@ -67,8 +72,8 @@ public final class SelfTest {
             }
         }
         int holes = 0;
-        int minX = which.worldMinX(), maxX = which.worldMaxX();
-        int minZ = which.worldMinZ(), maxZ = which.worldMaxZ();
+        int minX = area.worldMinX(), maxX = area.worldMaxX();
+        int minZ = area.worldMinZ(), maxZ = area.worldMaxZ();
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
                 if (x != minX && x != maxX && z != minZ && z != maxZ) continue;
@@ -91,13 +96,13 @@ public final class SelfTest {
             }
         }
         LOGGER.info("[selftest] {}: area x {}..{} z {}..{}, lubang di tepi: {}, air bocor ke luar: {}",
-                which.displayName(), minX, maxX, minZ, maxZ, holes, leaked);
+                area.describe(), minX, maxX, minZ, maxZ, holes, leaked);
 
-        Vec3 spawn = which.worldSpawn();
+        Vec3 spawn = area.worldSpawn();
         BlockPos feet = BlockPos.containing(spawn);
         LOGGER.info("[selftest] {}: {} blok non-udara, {} jenis. Spawn {} -> kaki: {}, pijakan: {}",
-                which.displayName(), total, counts.size(), feet,
+                area.describe(), total, counts.size(), feet,
                 level.getBlockState(feet), level.getBlockState(feet.below()));
-        LOGGER.info("[selftest] {} isi: {}", which.displayName(), counts);
+        LOGGER.info("[selftest] {} isi: {}", area.describe(), counts);
     }
 }

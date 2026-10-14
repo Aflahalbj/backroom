@@ -34,10 +34,13 @@ minecraft {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
-            // gradlew runClient -Pclienttest=true: masuk world "BackroomsTest", screenshot tiap level, lalu keluar.
+            // gradlew runClient -Pclienttest=true: masuk world "BackroomsTest" (dibuat kalau belum ada, lihat DevWorld), screenshot tiap level, lalu keluar.
+            // gradlew runClient -Panimtest=true: buka lobby dan tunggu perintah pratinjau animasi (lihat AnimDev).
+            if (project.hasProperty('animtest')) {
+                property 'backrooms.animtest', 'true'
+            }
             if (project.hasProperty('clienttest')) {
                 property 'backrooms.clienttest', 'true'
-                args '--quickPlaySingleplayer', 'BackroomsTest'
             }
             mods {
                 backrooms {
@@ -67,6 +70,12 @@ repositories {
         name = 'BlameJared (Veil)'
         url = 'https://maven.blamejared.com'
     }
+    // Player Animator, bendy-lib, dan TACZ diambil dari Maven Modrinth.
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
 }
 
 mixin {
@@ -84,6 +93,22 @@ dependencies {
     jarJar(group: 'foundry.veil', name: 'Veil-forge-1.20.1', version: '[1.0.0.228,1.0.0.228]') {
         transitive = false
     }
+
+    // Animasi pose lobby (format Emotecraft, dengan siku/lutut menekuk lewat bendy-lib).
+    // Keduanya MIT dan dibundel, jadi pemain tidak perlu memasangnya sendiri.
+    implementation fg.deobf('maven.modrinth:playeranimator:1.0.2-rc1+1.20-forge')
+    implementation fg.deobf('maven.modrinth:bendy-lib:4.0.0-forge')
+    jarJar(group: 'maven.modrinth', name: 'playeranimator', version: '[1.0.2-rc1+1.20-forge,)') {
+        transitive = false
+        jarJar.pin(it, '1.0.2-rc1+1.20-forge')
+    }
+    jarJar(group: 'maven.modrinth', name: 'bendy-lib', version: '[4.0.0-forge,)') {
+        transitive = false
+        jarJar.pin(it, '4.0.0-forge')
+    }
+
+    // TACZ hanya untuk mencoba senjata di lingkungan dev; di modpack dipasang sendiri (opsional).
+    runtimeOnly fg.deobf('maven.modrinth:timeless-and-classics-zero:1.1.8-hotfix2')
 }
 
 tasks.named('processResources', ProcessResources).configure {

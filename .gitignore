@@ -31,3 +31,12 @@ replay_pid*.log
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Python (tools/lobby_anims.py)
+__pycache__/
+*.py[cod]
+
+# Log / file sementara
+logs/
+*.log
+*.tmp

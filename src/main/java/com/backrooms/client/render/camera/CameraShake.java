@@ -26,7 +26,7 @@ public class CameraShake {
     private float cameraZRot = 0.0F;
 
     public void tick(Camera camera) {
-        if (ClientConfig.enableRealCamera()) {
+        if (ClientConfig.enableRealCamera() && !com.backrooms.client.lobby.IntroCutscene.isPlaying()) {
             float frameDelta = Minecraft.getInstance().getDeltaFrameTime();
             if (this.noiseY >= 1000.0D) {
                 this.noiseY = 0.0D;

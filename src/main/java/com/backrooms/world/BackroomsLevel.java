@@ -1,7 +1,6 @@
 package com.backrooms.world;
 
 import com.backrooms.block.ModBlocks;
-import com.backrooms.config.BackroomsConfig;
 import com.backrooms.world.gen.Level0Generator;
 import com.backrooms.world.gen.Level1Generator;
 import com.backrooms.world.gen.LevelGenerator;
@@ -20,18 +19,10 @@ import java.util.function.Supplier;
  * Ketiga dimensi. ID dimensi, titik spawn, dan generator-nya sama dengan mod
  * aslinya (lihat {@code com.sp.world.levels.custom.*}).
  *
- * <h2>Dua sistem koordinat</h2>
- *
- * Generator bekerja di koordinat <b>asli</b> mod. Area bangunannya dihitung
- * dari {@link BackroomsConfig#REGION_RADIUS}: region maze ada di setiap chunk
- * kelipatan 5 dan masing-masing mengisi 2 chunk ke kiri sampai 2 chunk ke
- * kanan, jadi area {@code [-5R-2, 5R+2]} chunk berisi tepat {@code (2R+1)^2}
- * region utuh. Area itu membentang -16h..16h+15 blok, jadi tengahnya di 7,5.
- *
- * <p>Di <b>dunia</b>, semuanya digeser sebesar {@link #offsetX()} /
- * {@link #offsetZ()} supaya tengah area tepat di 0,0. Titik spawn ikut
- * digeser, jadi pemain tetap mendarat di titik yang sama relatif terhadap
- * bangunannya seperti di mod aslinya.
+ * <p>Generator bekerja di koordinat <b>asli</b> mod. Luas dan letak bangunan
+ * di dunia (bangunan utama, set lobby, atau salinan milik room) diatur oleh
+ * {@link BuildArea}; titik spawn ikut digeser, jadi pemain tetap mendarat di
+ * titik yang sama relatif terhadap bangunannya seperti di mod aslinya.
  */
 public enum BackroomsLevel {
 
@@ -41,6 +32,13 @@ public enum BackroomsLevel {
             ModBlocks.CONCRETE_11),
     POOLROOMS("poolrooms", "poolrooms", "The Poolrooms", new Vec3(16.0D, 106.0D, 16.0D), PoolroomsGenerator::new, 0, 120,
             ModBlocks.POOL_TILES);
+
+    /**
+     * Dimensi lobby: ketiga set latar lobby berjajar di sini (lihat
+     * {@link BuildArea#lobby}), jadi ganti latar tidak pindah dimensi.
+     */
+    public static final ResourceKey<Level> LOBBY =
+            ResourceKey.create(Registries.DIMENSION, new ResourceLocation(ModBlocks.NAMESPACE, "lobby"));
 
     private final ResourceKey<Level> dimension;
     private final String commandName;
@@ -79,42 +77,21 @@ public enum BackroomsLevel {
 
     public int barrierMaxY() { return barrierMaxY; }
 
-    // ------------------------------------------- area, koordinat generator
+    /** Titik spawn di koordinat asli mod; {@link BuildArea#worldSpawn()} menggesernya ke dunia. */
+    public Vec3 spawn() { return spawn; }
 
-    public int minChunkX() { return -halfSize(); }
-
-    public int maxChunkX() { return halfSize(); }
-
-    public int minChunkZ() { return -halfSize(); }
-
-    public int maxChunkZ() { return halfSize(); }
-
-    private static int halfSize() {
-        return 5 * BackroomsConfig.REGION_RADIUS.get() + 2;
+    /**
+     * Level yang "berlaku" di suatu tempat, untuk suasana dan efeknya: di
+     * dimensi level itu sendiri, atau di dimensi lobby menurut set latar mana
+     * yang ditempati (dari koordinat X). {@code null} di luar Backrooms.
+     */
+    public static BackroomsLevel at(ResourceKey<Level> key, double x) {
+        if (LOBBY.equals(key)) return BuildArea.lobbyAt(x);
+        return byDimension(key);
     }
 
-    // ----------------------------------------------- pergeseran ke dunia
-
-    /** Geser X supaya tengah area tepat di 0: area lebar genap jadi -w/2 .. w/2-1. */
-    public int offsetX() {
-        return -((minChunkX() * 16 + maxChunkX() * 16 + 16) / 2);
-    }
-
-    public int offsetZ() {
-        return -((minChunkZ() * 16 + maxChunkZ() * 16 + 16) / 2);
-    }
-
-    public int worldMinX() { return minChunkX() * 16 + offsetX(); }
-
-    public int worldMaxX() { return maxChunkX() * 16 + 15 + offsetX(); }
-
-    public int worldMinZ() { return minChunkZ() * 16 + offsetZ(); }
-
-    public int worldMaxZ() { return maxChunkZ() * 16 + 15 + offsetZ(); }
-
-    /** Titik spawn aslinya, digeser bersama bangunannya. */
-    public Vec3 worldSpawn() {
-        return spawn.add(offsetX(), 0.0D, offsetZ());
+    public static BackroomsLevel at(Level level, double x) {
+        return level == null ? null : at(level.dimension(), x);
     }
 
     public static BackroomsLevel byDimension(ResourceKey<Level> key) {

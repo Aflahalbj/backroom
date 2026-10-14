@@ -22,7 +22,7 @@ public final class PoolroomsDayCycle {
 
     public static float advanceDayTime(Level world) {
         if (world != null) {
-            if (world.dimension() == BackroomsLevel.POOLROOMS.dimension()) {
+            if (com.backrooms.client.CameraEffect.isInLevel(BackroomsLevel.POOLROOMS)) {
                 float currentTime = 0.0F;
                 dayTime = currentTime;
                 return currentTime;

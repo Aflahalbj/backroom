@@ -1,8 +1,10 @@
 package com.backrooms.command;
 
+import com.backrooms.lobby.LobbyManager;
 import com.backrooms.network.ClientActionS2C;
 import com.backrooms.network.ModNetwork;
 import com.backrooms.world.BackroomsLevel;
+import com.backrooms.world.BuildArea;
 import com.backrooms.world.LevelBuilder;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -21,7 +23,7 @@ import static net.minecraft.commands.Commands.literal;
 
 /**
  * {@code /backroom gotolevel0}, {@code gotolevel1}, {@code gotopoolrooms},
- * {@code gotoworld}. Bentuk berspasi {@code /backroom gotolevel <nama>} juga
+ * {@code gotoworld}, {@code lobby} (keluar room, kembali ke lobby). Bentuk berspasi {@code /backroom gotolevel <nama>} juga
  * diterima, dengan tab-completion.
  *
  * <p>Efek kamera dan senter (pengaturan klien pemain yang menjalankannya):
@@ -71,13 +73,18 @@ public final class BackroomCommand {
                                 ctx.getSource().sendFailure(Component.literal("Level tidak dikenal: " + name));
                                 return 0;
                             }
-                            String status = LevelBuilder.prebuild(ctx.getSource().getServer(), level);
+                            String status = LevelBuilder.prebuild(ctx.getSource().getServer(), BuildArea.main(level));
                             ctx.getSource().sendSuccess(() -> Component.literal(status), true);
                             return 1;
                         })));
 
         root.then(literal("gotoworld").executes(ctx -> {
             Teleports.goToWorld(ctx.getSource().getPlayerOrException());
+            return 1;
+        }));
+
+        root.then(literal("lobby").executes(ctx -> {
+            LobbyManager.goToLobby(ctx.getSource().getPlayerOrException());
             return 1;
         }));
 

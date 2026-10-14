@@ -8,6 +8,7 @@ import com.backrooms.block.entity.ThinFluorescentLightBlockEntity;
 import com.backrooms.client.CameraEffect;
 import com.backrooms.client.ClientConfig;
 import com.backrooms.sound.ModSounds;
+import com.backrooms.world.BackroomsLevel;
 import foundry.veil.api.client.render.VeilRenderSystem;
 import foundry.veil.api.client.render.deferred.light.AreaLight;
 import foundry.veil.api.client.render.deferred.light.Light;
@@ -25,7 +26,10 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Port sisi klien dari {@code com.sp.clientWrapper.ClientWrapper}
@@ -66,8 +70,33 @@ public final class LightTicks {
         return (State) be.clientLight;
     }
 
-    private static void removeLight(Light light) {
-        if (light != null) lights().removeLight(light);
+    /** Semua lampu Veil yang dipasang di sini, supaya bisa dibersihkan saat dunianya diganti. */
+    private static final Set<Light> ADDED = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    public static void addLight(Light light) {
+        ADDED.add(light);
+        lights().addLight(light);
+    }
+
+    public static void removeLight(Light light) {
+        if (light != null) {
+            ADDED.remove(light);
+            lights().removeLight(light);
+        }
+    }
+
+    /**
+     * Dunia klien diganti (pindah dimensi, keluar server): block entity dunia
+     * lama tidak dihapus satu per satu, jadi lampunya dilepas di sini. Tanpa
+     * ini lampu dari dimensi sebelumnya menumpuk dan penerangan rusak.
+     */
+    public static void clearAll() {
+        if (ADDED.isEmpty()) return;
+        LightRenderer renderer = lights();
+        for (Light light : ADDED) {
+            renderer.removeLight(light);
+        }
+        ADDED.clear();
     }
 
     // ------------------------------------------------------- fluorescent
@@ -93,7 +122,7 @@ public final class LightTicks {
                 }
                 if (s.pointLight == null) {
                     s.pointLight = new PointLight();
-                    lights().addLight(s.pointLight.setRadius(13.0F).setColor(1.0F, 0.9411765F, 0.39215687F)
+                    addLight(s.pointLight.setRadius(13.0F).setColor(1.0F, 0.9411765F, 0.39215687F)
                             .setPosition(position.x, position.y - 1.0D, position.z).setBrightness(1.0F));
                 }
             } else {
@@ -131,14 +160,17 @@ public final class LightTicks {
                 }
                 if (s.pointLight == null) {
                     s.pointLight = new PointLight();
-                    lights().addLight(s.pointLight.setRadius(18.0F).setBrightness(0.0024F));
+                    addLight(s.pointLight.setRadius(18.0F).setBrightness(0.0024F));
                     // Di aslinya switch FACE/FACING tanpa break jatuh ke kasus
                     // langit-langit, jadi posisinya selalu pusat blok.
                     s.pointLight.setPosition(position.x, position.y, position.z);
-                    switch (world.dimension().location().toString()) {
-                        case "spb-revamped:poolrooms" -> s.pointLight.setColor(175.0F, 175.0F, 255.0F).setBrightness(0.0035F);
-                        case "spb-revamped:level0" -> s.pointLight.setColor(200.0F, 200.0F, 255.0F).setBrightness(0.005F);
-                        default -> s.pointLight.setColor(255.0F, 255.0F, 255.0F);
+                    BackroomsLevel here = BackroomsLevel.at(world, pos.getX());
+                    if (here == BackroomsLevel.POOLROOMS) {
+                        s.pointLight.setColor(175.0F, 175.0F, 255.0F).setBrightness(0.0035F);
+                    } else if (here == BackroomsLevel.LEVEL0) {
+                        s.pointLight.setColor(200.0F, 200.0F, 255.0F).setBrightness(0.005F);
+                    } else {
+                        s.pointLight.setColor(255.0F, 255.0F, 255.0F);
                     }
                 }
             } else {
@@ -196,13 +228,13 @@ public final class LightTicks {
                 s.areaLight1 = new AreaLight();
                 s.areaLight2 = new AreaLight();
                 s.pointLight = new PointLight();
-                lights().addLight(s.areaLight1.setBrightness(1.0F).setColor(1.0F, 0.0F, 0.0F).setSize(0.0D, 0.0D)
+                addLight(s.areaLight1.setBrightness(1.0F).setColor(1.0F, 0.0F, 0.0F).setSize(0.0D, 0.0D)
                         .setAngle((float) Math.toRadians(50.0D)).setOrientation(new Quaternionf().rotateXYZ(0.0F, 0.0F, 0.0F))
                         .setPosition(new Vector3d(centerPos.x, centerPos.y, centerPos.z)).setDistance(15.0F));
-                lights().addLight(s.areaLight2.setBrightness(1.0F).setColor(1.0F, 0.0F, 0.0F).setSize(0.0D, 0.0D)
+                addLight(s.areaLight2.setBrightness(1.0F).setColor(1.0F, 0.0F, 0.0F).setSize(0.0D, 0.0D)
                         .setAngle((float) Math.toRadians(50.0D)).setOrientation(new Quaternionf().rotateXYZ(0.0F, 0.0F, 0.0F))
                         .setPosition(new Vector3d(centerPos.x, centerPos.y, centerPos.z)).setDistance(15.0F));
-                lights().addLight(s.pointLight.setBrightness(0.5F).setColor(1.0F, 0.0F, 0.0F)
+                addLight(s.pointLight.setBrightness(0.5F).setColor(1.0F, 0.0F, 0.0F)
                         .setPosition(new Vector3d(centerPos.x, centerPos.y, centerPos.z)).setRadius(15.0F));
                 s.initEmergencyLights = true;
             }
@@ -220,7 +252,7 @@ public final class LightTicks {
             if (!s.initNormalLights) {
                 s.pointLight = new PointLight();
                 Vec3 centerPos = pos.getCenter().add(0.0D, -0.15625D, 0.0D);
-                lights().addLight(s.pointLight.setBrightness(1.0F).setPosition(new Vector3d(centerPos.x, centerPos.y, centerPos.z)).setRadius(15.0F));
+                addLight(s.pointLight.setBrightness(1.0F).setPosition(new Vector3d(centerPos.x, centerPos.y, centerPos.z)).setRadius(15.0F));
                 s.initNormalLights = true;
             }
         }

@@ -23,7 +23,7 @@ public record FlashlightC2S(boolean on) {
             ServerPlayer player = ctx.get().getSender();
             if (player == null) return;
             // Poolrooms melarang senter, sama dengan pengecekan di klien.
-            boolean allowed = player.level().dimension() != BackroomsLevel.POOLROOMS.dimension();
+            boolean allowed = BackroomsLevel.at(player.level(), player.getX()) != BackroomsLevel.POOLROOMS;
             ModNetwork.setFlashlight(player, msg.on && allowed);
         });
         ctx.get().setPacketHandled(true);

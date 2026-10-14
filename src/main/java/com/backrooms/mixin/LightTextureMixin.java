@@ -1,6 +1,7 @@
 package com.backrooms.mixin;
 
 import com.backrooms.client.render.PoolroomsDayCycle;
+import com.backrooms.client.CameraEffect;
 import com.backrooms.world.BackroomsLevel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -24,6 +25,6 @@ public abstract class LightTextureMixin {
         ClientLevel clientWorld = Minecraft.getInstance().level;
         float f = clientWorld.getSkyDarken(1.0F);
         Vector3f baseColor = new Vector3f(f);
-        return clientWorld.dimension() == BackroomsLevel.POOLROOMS.dimension() ? baseColor.mul(PoolroomsDayCycle.getLightColor()) : baseColor;
+        return CameraEffect.isInLevel(BackroomsLevel.POOLROOMS) ? baseColor.mul(PoolroomsDayCycle.getLightColor()) : baseColor;
     }
 }

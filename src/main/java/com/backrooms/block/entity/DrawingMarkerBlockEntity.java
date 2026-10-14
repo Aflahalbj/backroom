@@ -29,7 +29,7 @@ public class DrawingMarkerBlockEntity extends BlockEntity {
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, DrawingMarkerBlockEntity entity) {
-        if (level.dimension() != BackroomsLevel.LEVEL0.dimension()) return;
+        if (BackroomsLevel.at(level, pos.getX()) != BackroomsLevel.LEVEL0) return;
 
         int pick = entity.random.nextIntBetweenInclusive(1, 4);
         int chance = entity.random.nextIntBetweenInclusive(1, 10);

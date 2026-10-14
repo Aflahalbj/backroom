@@ -27,9 +27,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class GuiMixin {
 
     @Unique
-    private final Timer backrooms$hotbarSlideTimer = new Timer(500L, Easings.Easing.easeInCirc, Easings.Easing.easeOutCirc);
+    private Timer backrooms$hotbarSlideTimer;
     @Unique
-    private final TickTimer backrooms$hotbarHoldTimer = new TickTimer();
+    private TickTimer backrooms$hotbarHoldTimer;
     @Unique
     private Integer backrooms$prevSelectedSlot = 0;
     @Unique
@@ -38,6 +38,12 @@ public abstract class GuiMixin {
     @Inject(method = "renderHotbar", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V", shift = At.Shift.AFTER))
     private void backrooms$hotbarSlide1(float tickDelta, GuiGraphics context, CallbackInfo ci) {
         if (CameraEffect.shouldRenderCameraEffect()) {
+            // Dibuat saat pertama dipakai: penginisialisasi field mixin di Gui tidak selalu jalan
+            // (terlihat sebagai NullPointerException di overlay hotbar).
+            if (this.backrooms$hotbarSlideTimer == null) {
+                this.backrooms$hotbarSlideTimer = new Timer(500L, Easings.Easing.easeInCirc, Easings.Easing.easeOutCirc);
+                this.backrooms$hotbarHoldTimer = new TickTimer();
+            }
             this.backrooms$hotbarPosition = 45.0F * this.backrooms$hotbarSlideTimer.getCurrentTime();
             if (!ClientConfig.useDefaultGUI()) {
                 context.pose().translate(0.0D, this.backrooms$hotbarPosition, 0.0D);

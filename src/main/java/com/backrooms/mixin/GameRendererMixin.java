@@ -3,6 +3,8 @@ package com.backrooms.mixin;
 import com.backrooms.client.CameraEffect;
 import com.backrooms.client.ClientConfig;
 import com.backrooms.client.VeilShaders;
+import com.backrooms.client.lobby.IntroCutscene;
+import com.backrooms.client.lobby.LobbyClient;
 import com.backrooms.client.render.ShadowMapRenderer;
 import com.backrooms.client.render.camera.CameraRoll;
 import com.backrooms.util.MathStuff;
@@ -30,7 +32,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Port dari {@code com.sp.mixin.GameRendererMixin}:
  *
  * <ul>
- *   <li>roll kamera (menoleh + bergeser + guncangan) sebelum efek "hurt";</li>
+ *   <li>roll kamera (menoleh + bergeser + guncangan) sebelum efek "hurt",
+ *       atau rotasi {@code cameraRotZ} selama intro Level 0;</li>
  *   <li>pitch/yaw kamera dihaluskan (orang pertama);</li>
  *   <li>view bobbing diganti versi asli (lebih kuat, x10 dengan real camera);</li>
  *   <li>shader blok/entity diganti shader shadow map selama shadow pass;</li>
@@ -68,11 +71,17 @@ public abstract class GameRendererMixin {
 
     @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;bobHurt(Lcom/mojang/blaze3d/vertex/PoseStack;F)V"))
     private void backrooms$cameraRoll(float tickDelta, long limitTime, PoseStack matrices, CallbackInfo ci) {
+        // Kamera lobby menatap karakter, bukan pandangan pemain: tanpa kotak blok yang dibidik.
+        this.setRenderBlockOutline(!LobbyClient.overridesCamera());
         if (CameraEffect.shouldRenderCameraEffect()) {
             Player player = this.minecraft.player;
-            this.setRenderBlockOutline(true);
-            if (player != null && ClientConfig.enableRealCamera() && this.minecraft.getCameraEntity() == player) {
-                matrices.mulPose(Axis.ZP.rotationDegrees(CameraRoll.doCameraRoll(player, tickDelta)));
+            if (player != null) {
+                if (ClientConfig.enableRealCamera() && !IntroCutscene.isPlaying() && !LobbyClient.overridesCamera()
+                        && this.minecraft.getCameraEntity() == player) {
+                    matrices.mulPose(Axis.ZP.rotationDegrees(CameraRoll.doCameraRoll(player, tickDelta)));
+                } else if (IntroCutscene.isPlaying()) {
+                    matrices.mulPose(Axis.YP.rotationDegrees(IntroCutscene.cameraRotZ));
+                }
             }
         }
     }

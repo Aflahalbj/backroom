@@ -1,0 +1,13 @@
+{
+  "type": "spb-revamped:poolrooms_type",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [],
+      "biome": "spb-revamped:base_backrooms_biome",
+      "lakes": false,
+      "features": false,
+      "structure_overrides": []
+    }
+  }
+}

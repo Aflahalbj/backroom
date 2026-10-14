@@ -33,7 +33,7 @@ public abstract class LightRendererMixin {
         Player player = client.player;
         if (player != null && client.level != null) {
             ResourceKey<Level> registryKey = player.level().dimension();
-            if (registryKey == BackroomsLevel.LEVEL0.dimension()) {
+            if (BackroomsLevel.at(registryKey, player.getX()) == BackroomsLevel.LEVEL0 && !com.backrooms.client.lobby.IntroCutscene.isPlaying()) {
                 this.backrooms$setShadowUniforms(shader);
                 shader.setInt("InOverWorld", registryKey == Level.OVERWORLD ? 1 : 0);
                 shader.setInt("ShouldRender", 1);

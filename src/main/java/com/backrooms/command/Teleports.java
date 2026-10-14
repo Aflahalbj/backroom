@@ -1,6 +1,9 @@
 package com.backrooms.command;
 
+import com.backrooms.lobby.LobbyManager;
+import com.backrooms.lobby.RoomManager;
 import com.backrooms.world.BackroomsLevel;
+import com.backrooms.world.BuildArea;
 import com.backrooms.world.LevelBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -23,6 +26,8 @@ import net.minecraft.world.phys.Vec3;
  * terbawa Forge waktu pemain mati dan respawn. Titik itu hanya dicatat waktu
  * pemain berangkat dari luar backrooms, jadi pindah dari level 0 ke level 1
  * tetap mengembalikan ke tempat semula di dunia biasa.
+ *
+ * <p>Pemain yang ikut room masuk ke salinan level milik room-nya.
  */
 public final class Teleports {
 
@@ -36,10 +41,12 @@ public final class Teleports {
         if (BackroomsLevel.byDimension(player.level().dimension()) == null) {
             saveReturnPoint(player);
         }
-        LevelBuilder.ensureBuilt(server, which, player, ready -> {
+        BuildArea area = RoomManager.areaFor(player, which);
+        LevelBuilder.ensureBuilt(server, area, player, ready -> {
             ServerLevel target = server.getLevel(which.dimension());
             if (target == null) return;
-            Vec3 spawn = which.worldSpawn();
+            LobbyManager.exit(ready);
+            Vec3 spawn = area.worldSpawn();
             ready.fallDistance = 0;
             ready.teleportTo(target, spawn.x, spawn.y, spawn.z, ready.getYRot(), ready.getXRot());
             ready.sendSystemMessage(Component.literal("Kamu masuk ke " + which.displayName() + ".")
@@ -70,6 +77,7 @@ public final class Teleports {
             pos = Vec3.atBottomCenterOf(spawn);
         }
         persisted.remove(RETURN_KEY);
+        LobbyManager.exit(player);
         player.fallDistance = 0;
         player.teleportTo(target, pos.x, pos.y, pos.z, yRot, xRot);
         player.sendSystemMessage(Component.literal("Kamu kembali ke dunia.").withStyle(ChatFormatting.GRAY));

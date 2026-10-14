@@ -5,7 +5,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 
-/** Port dari {@code com.sp.util.MathStuff} (hanya bagian yang dipakai efek kamera). */
+/** Port dari {@code com.sp.util.MathStuff} (hanya bagian yang dipakai efek kamera dan cutscene). */
 public final class MathStuff {
 
     private MathStuff() {}
@@ -17,6 +17,10 @@ public final class MathStuff {
     /** Lerp yang tidak bergantung frame rate: {@code delta} = durasi frame terakhir (tick). */
     public static float Lerp(float source, float destination, float smoothingFactor, float delta) {
         return Mth.lerp(1.0F - (float) Math.pow(smoothingFactor, delta), source, destination);
+    }
+
+    public static int millisecToTick(long millisec) {
+        return (int) ((double) millisec * 0.02D);
     }
 
     public static float randomFloat(float min, float max, RandomSource random) {

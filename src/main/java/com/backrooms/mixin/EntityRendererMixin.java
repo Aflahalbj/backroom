@@ -18,7 +18,7 @@ public abstract class EntityRendererMixin<T extends Entity> {
 
     @Inject(method = "renderNameTag", at = @At("HEAD"), cancellable = true)
     private void backrooms$disablePlayerTags(T entity, Component text, PoseStack matrices, MultiBufferSource vertexConsumers, int light, CallbackInfo ci) {
-        if (entity instanceof AbstractClientPlayer && BackroomsLevel.byDimension(entity.level().dimension()) != null) {
+        if (entity instanceof AbstractClientPlayer && BackroomsLevel.at(entity.level(), entity.getX()) != null) {
             ci.cancel();
         }
     }

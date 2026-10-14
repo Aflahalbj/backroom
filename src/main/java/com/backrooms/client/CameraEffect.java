@@ -54,7 +54,7 @@ import java.util.function.BooleanSupplier;
  * </ul>
  *
  * Fitur dari level/entitas yang tidak ada di port ini (warp Level 2,
- * jumpscare skinwalker, glitch smiler, cutscene) memakai nilai "diam" seperti
+ * jumpscare skinwalker, glitch smiler) memakai nilai "diam" seperti
  * saat fitur itu tidak aktif di mod aslinya.
  */
 public final class CameraEffect {
@@ -69,7 +69,7 @@ public final class CameraEffect {
     /** {@code ConfigDefinitions.definitions} asli. */
     private static final Map<String, BooleanSupplier> CONFIG_DEFINITIONS = new LinkedHashMap<>();
     /** {@code BackroomsLevels.definitions} asli (hanya level yang ada di port ini). */
-    private static final Map<String, ResourceKey<Level>> LEVEL_DEFINITIONS = new LinkedHashMap<>();
+    private static final Map<String, BackroomsLevel> LEVEL_DEFINITIONS = new LinkedHashMap<>();
 
     static {
         CONFIG_DEFINITIONS.put("SHADOWS", ClientConfig::enableShadows);
@@ -79,9 +79,9 @@ public final class CameraEffect {
         CONFIG_DEFINITIONS.put("WATER_REFLECTIONS", ClientConfig::renderWaterReflections);
         CONFIG_DEFINITIONS.put("BLOCK_REFLECTIONS", ClientConfig::renderBlockReflections);
         CONFIG_DEFINITIONS.put("MOTION_BLUR", ClientConfig::motionBlur);
-        LEVEL_DEFINITIONS.put("LEVEL0", BackroomsLevel.LEVEL0.dimension());
-        LEVEL_DEFINITIONS.put("LEVEL1", BackroomsLevel.LEVEL1.dimension());
-        LEVEL_DEFINITIONS.put("POOLROOMS", BackroomsLevel.POOLROOMS.dimension());
+        LEVEL_DEFINITIONS.put("LEVEL0", BackroomsLevel.LEVEL0);
+        LEVEL_DEFINITIONS.put("LEVEL1", BackroomsLevel.LEVEL1);
+        LEVEL_DEFINITIONS.put("POOLROOMS", BackroomsLevel.POOLROOMS);
     }
 
     private static final CameraShake CAMERA_SHAKE = new CameraShake();
@@ -111,7 +111,13 @@ public final class CameraEffect {
         MinecraftForge.EVENT_BUS.addListener(CameraEffect::onLevelTick);
         MinecraftForge.EVENT_BUS.addListener(CameraEffect::onJoin);
         MinecraftForge.EVENT_BUS.addListener(CameraEffect::onDisconnect);
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.level.LevelEvent.Unload event) -> {
+            if (event.getLevel().isClientSide()) com.backrooms.client.light.LightTicks.clearAll();
+        });
+        com.backrooms.client.lobby.LobbyClient.init();
+        com.backrooms.client.lobby.AnimDev.init();
         ClientSelfTest.init();
+        DevWorld.init();
     }
 
     // ------------------------------------------------------------- stages
@@ -126,10 +132,10 @@ public final class CameraEffect {
         Minecraft client = Minecraft.getInstance();
         Level clientWorld = client.level;
         if (clientWorld != null) {
-            if (clientWorld.dimension() == BackroomsLevel.POOLROOMS.dimension() && stage == VeilRenderLevelStageEvent.Stage.AFTER_SKY && cam != null) {
+            if (isInLevel(BackroomsLevel.POOLROOMS) && stage == VeilRenderLevelStageEvent.Stage.AFTER_SKY && cam != null) {
                 ShadowMapRenderer.renderShadowMap(cam, partialTicks, clientWorld);
             }
-            if (clientWorld.dimension() == BackroomsLevel.LEVEL0.dimension() && stage == VeilRenderLevelStageEvent.Stage.AFTER_SKY && cam != null) {
+            if (isInLevel(BackroomsLevel.LEVEL0) && stage == VeilRenderLevelStageEvent.Stage.AFTER_SKY && cam != null) {
                 ShadowMapRenderer.renderLevel0ShadowMap(cam, clientWorld);
             }
         }
@@ -184,7 +190,7 @@ public final class CameraEffect {
 
             shaderProgram = context.getShader(EVERYTHING_SHADER);
             if (shaderProgram != null) {
-                boolean level1 = client.level.dimension() == BackroomsLevel.LEVEL1.dimension();
+                boolean level1 = isInLevel(BackroomsLevel.LEVEL1);
                 shaderProgram.setInt("FogToggle", level1 ? 1 : 0);
                 shaderProgram.setInt("blackScreen", !blackScreen && !player.isInWall() ? 0 : 1);
                 shaderProgram.setInt("TogglePuddles", level1 ? 1 : 0);
@@ -211,8 +217,9 @@ public final class CameraEffect {
                 definitions.remove(define);
             }
         });
-        LEVEL_DEFINITIONS.forEach((define, dimension) -> {
-            if (client.level.dimension() == dimension) {
+        BackroomsLevel current = currentLevel();
+        LEVEL_DEFINITIONS.forEach((define, level) -> {
+            if (current == level) {
                 definitions.define(define);
             } else {
                 definitions.remove(define);
@@ -235,12 +242,12 @@ public final class CameraEffect {
         Minecraft client = Minecraft.getInstance();
         Player playerClient = client.player;
         if (playerClient != null) {
-            setInBackrooms(BackroomsLevel.byDimension(playerClient.level().dimension()) != null);
+            setInBackrooms(currentLevel() != null);
             if (client.level != null) {
                 LightRenderer lightRenderer = VeilRenderSystem.renderer().getDeferredRenderer().getLightRenderer();
                 if (shouldRenderCameraEffect() && isInBackrooms()) {
                     // Hanya Poolrooms yang hasVanillaLighting() di aslinya.
-                    if (playerClient.level().dimension() != BackroomsLevel.POOLROOMS.dimension()) {
+                    if (!isInLevel(BackroomsLevel.POOLROOMS)) {
                         lightRenderer.disableVanillaLight();
                     } else {
                         lightRenderer.enableVanillaLight();
@@ -300,6 +307,10 @@ public final class CameraEffect {
     }
 
     public static boolean shouldRenderCameraEffect() {
+        if (com.backrooms.client.lobby.LobbyClient.isActive()) {
+            // Lobby selalu memakai efek kamera VHS (tidak bisa diatur).
+            return true;
+        }
         return !isInBackrooms() && ClientConfig.enableVhsEffect() || isInBackrooms() && ClientConfig.enableVhsEffectInTheBackrooms();
     }
 
@@ -312,7 +323,17 @@ public final class CameraEffect {
     }
 
     public static boolean isInLevel(BackroomsLevel level) {
+        return currentLevel() == level;
+    }
+
+    /**
+     * Level yang suasananya sedang berlaku untuk pemain ini: dimensinya, atau
+     * di dimensi lobby set latar yang ditempati (lihat {@link BackroomsLevel#at}).
+     */
+    public static BackroomsLevel currentLevel() {
         Minecraft client = Minecraft.getInstance();
-        return client.level != null && client.level.dimension() == level.dimension();
+        if (client.level == null) return null;
+        double x = client.player != null ? client.player.getX() : 0.0D;
+        return BackroomsLevel.at(client.level.dimension(), x);
     }
 }

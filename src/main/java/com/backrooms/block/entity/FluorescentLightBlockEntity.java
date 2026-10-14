@@ -66,7 +66,7 @@ public class FluorescentLightBlockEntity extends BlockEntity {
 
     /** @return false kalau panel ini baru saja diganti ceiling tile. */
     private static boolean serverTick(Level level, BlockPos pos, BlockState state) {
-        if (level.dimension() == BackroomsLevel.LEVEL0.dimension()
+        if (BackroomsLevel.at(level, pos.getX()) == BackroomsLevel.LEVEL0
                 && level.getBlockState(pos.below()) != Blocks.AIR.defaultBlockState()) {
             level.setBlockAndUpdate(pos, ModBlocks.CEILING_TILE.get().defaultBlockState());
             return false;
