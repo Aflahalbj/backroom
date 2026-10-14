@@ -1,0 +1,132 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.+'
+}
+
+version = '1.0.0'
+group = 'com.backrooms'
+
+base {
+    archivesName = 'backrooms'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+// Veil (renderer yang dipakai mod aslinya) ikut dibundel di dalam jar mod ini.
+jarJar.enable()
+
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+
+minecraft {
+    mappings channel: 'official', version: '1.20.1'
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            arg '-mixin.config=backrooms.mixins.json'
+        }
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            // gradlew runClient -Pclienttest=true: masuk world "BackroomsTest", screenshot tiap level, lalu keluar.
+            if (project.hasProperty('clienttest')) {
+                property 'backrooms.clienttest', 'true'
+                args '--quickPlaySingleplayer', 'BackroomsTest'
+            }
+            mods {
+                backrooms {
+                    source sourceSets.main
+                }
+            }
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            args '--nogui'
+            // gradlew runServer -Pselftest=true: bangun keenam level, catat isinya, lalu berhenti.
+            property 'backrooms.selftest', (project.findProperty('selftest') ?: 'false').toString()
+            mods {
+                backrooms {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'BlameJared (Veil)'
+        url = 'https://maven.blamejared.com'
+    }
+}
+
+mixin {
+    add sourceSets.main, 'backrooms.refmap.json'
+    config 'backrooms.mixins.json'
+}
+
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.0'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // Versi yang sama persis dengan yang dibundel mod aslinya (Veil 1.0.0.228).
+    implementation fg.deobf('foundry.veil:Veil-forge-1.20.1:1.0.0.228')
+    // Jar Veil sudah berisi molang/imgui/asm-nya sendiri; dependency transitifnya tidak ikut dibundel.
+    jarJar(group: 'foundry.veil', name: 'Veil-forge-1.20.1', version: '[1.0.0.228,1.0.0.228]') {
+        transitive = false
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version      : '1.20.1', minecraft_version_range: '[1.20.1,1.20.2)',
+            forge_version          : '47.3.0', forge_version_range: '[47,)',
+            loader_version_range   : '[47,)',
+            mod_id                 : 'backrooms', mod_name: 'Backrooms Dimension',
+            mod_license            : 'All Rights Reserved', mod_version: project.version,
+            mod_authors            : 'User', mod_description: '''Six Backrooms dimensions built from the SP-Backrooms Revamped structure kit. /backroom gotolevel & gotoworld.'''
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml']) { expand replaceProperties + [project: project] }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes([
+                "Specification-Title"     : "backrooms",
+                "Specification-Vendor"    : "User",
+                "Specification-Version"   : "1",
+                "Implementation-Title"    : project.name,
+                "Implementation-Version"  : project.jar.archiveVersion,
+                "Implementation-Vendor"   : "User",
+                "MixinConfigs"            : "backrooms.mixins.json"
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+// Jar akhir = jar mod + Veil di dalamnya (jarJar), lalu di-reobf.
+tasks.named('jarJar') {
+    archiveClassifier = ''
+}
+tasks.named('jar') {
+    archiveClassifier = 'slim'
+}
+reobf {
+    jarJar {}
+}
+tasks.named('jarJar').configure { finalizedBy 'reobfJarJar' }
+

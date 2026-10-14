@@ -1,0 +1,54 @@
+{
+  "vertex": "veil:blit_screen",
+  "fragment": "spb-revamped:vhs/water",
+  "definitions": [
+    "WATER_REFLECTIONS",
+    "BLOCK_REFLECTIONS",
+    "POOLROOMS",
+    "LEVEL324"
+  ],
+  "textures": {
+    "WaterTexture": "spb-revamped:textures/shaders/water_noise.png",
+    "CausticsTexture": "spb-revamped:textures/shaders/caustics3.png",
+    "NormalTexture": "spb-revamped:textures/shaders/water_normal.png",
+    "WaterFrameBuffer": {
+      "type": "framebuffer",
+      "name": "veil:transparent",
+      "sampler": 5
+    },
+    "WaterDepth": {
+      "type": "framebuffer",
+      "name": "veil:transparent_final:depth"
+    },
+    "VanillaWater": {
+      "type": "framebuffer",
+      "name": "veil:transparent_final"
+    },
+    "OpaqueDepth": {
+      "type": "framebuffer",
+      "name": "veil:opaque:depth"
+    },
+    "HandDepth": {
+      "type": "framebuffer",
+      "name": "veil:first_person:depth"
+    },
+    "UnderWaterBuffer": {
+      "type": "framebuffer",
+      "name": "veil:opaque_light"
+    },
+    "ShadowSampler": {
+      "type": "framebuffer",
+      "name": "spb-revamped:shadowmap:depth"
+    },
+    "NormalSampler": {
+      "type": "framebuffer",
+      "name": "veil:transparent",
+      "sampler": 2
+    },
+    "OpaqueNormalSampler": {
+      "type": "framebuffer",
+      "name": "veil:opaque",
+      "sampler": 2
+    }
+  }
+}

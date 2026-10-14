@@ -1,0 +1,13 @@
+{
+  "vertex": "veil:blit_screen",
+  "fragment": "spb-revamped:vhs/light_cone",
+  "definitions": [
+    "VOLUMETRIC_LIGHT",
+    "LEVEL324"
+  ]
+}
+
+
+
+
+

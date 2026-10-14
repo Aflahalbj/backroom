@@ -1,0 +1,9 @@
+{
+  "width": "2048",
+  "height": "2048",
+  "autoClear": true,
+  "depth": {
+    "linear": true
+  }
+
+}

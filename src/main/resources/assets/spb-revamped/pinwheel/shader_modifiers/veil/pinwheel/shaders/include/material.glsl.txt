@@ -1,0 +1,7 @@
+#version 330
+#priority 1000
+
+[FUNCTION isBlock HEAD]
+if(material >= 18) {
+    return true;
+}

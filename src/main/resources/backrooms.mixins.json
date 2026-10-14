@@ -1,0 +1,41 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.backrooms.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "backrooms.refmap.json",
+  "mixins": [],
+  "client": [
+    "BlockRenderDispatcherMixin",
+    "BufferBuilderMixin",
+    "CameraAccessor",
+    "CameraMixin",
+    "ChunkBufferBuilderPackMixin",
+    "EntityRenderDispatcherMixin",
+    "EntityRendererMixin",
+    "ForgeGuiMixin",
+    "GameRendererMixin",
+    "GuiMixin",
+    "ItemInHandRendererMixin",
+    "LevelRendererAccessor",
+    "LevelRendererMixin",
+    "LightTextureMixin",
+    "MinecraftMixin",
+    "ModelManagerMixin",
+    "OptionsMixin",
+    "ParticleEngineMixin",
+    "RenderTypeMixin",
+    "TextureAtlasAccessor",
+    "veil.AreaLightMixin",
+    "veil.AreaLightRendererMixin",
+    "veil.IndirectLightRendererMixin",
+    "veil.IndirectPointLightRendererMixin",
+    "veil.InstancedPointLightRendererMixin",
+    "veil.LightRendererMixin",
+    "veil.MutableUniformAccessMixin",
+    "veil.VeilShadersMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

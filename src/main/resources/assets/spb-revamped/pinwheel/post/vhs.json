@@ -1,0 +1,202 @@
+{
+    "stages": [
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/ssao",
+            "in": "minecraft:main",
+            "out": "spb-revamped:ssao"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/mixed",
+            "in": "minecraft:main",
+            "out": "spb-revamped:mixed",
+            "clear": false
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/water",
+            "in": "spb-revamped:mixed",
+            "out": "spb-revamped:water"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/everything",
+            "in": "spb-revamped:mixed",
+            "out": "spb-revamped:everything_prebloom"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/highlights",
+            "in": "spb-revamped:everything_prebloom",
+            "out": "spb-revamped:highlights"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/highlight_blur",
+            "in": "spb-revamped:highlights",
+            "out": "spb-revamped:highlight_blur"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/bloom",
+            "in": "spb-revamped:everything_prebloom",
+            "out": "spb-revamped:everything_wbloom"
+        },
+        {
+          "type": "veil:blit",
+          "shader": "spb-revamped:vhs/light_cone",
+          "in": "spb-revamped:everything_wbloom",
+          "out": "spb-revamped:light_cones"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/vhs_post",
+            "in": "spb-revamped:light_cones",
+            "out": "swap"
+        },
+        {
+            "type": "veil:blit",
+            "shader": "spb-revamped:vhs/glitch",
+            "in": "swap",
+            "out": "veil:post"
+        }
+    ],
+    "framebuffers": {
+        "swap": {
+            "depth": true
+        }
+    },
+    "textures": {
+        "Stars": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/stars.png"
+        },
+        "NoiseTex": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/rnoise.png"
+        },
+        "RNoiseDir": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/rnoisedir.png"
+        },
+        "ditherSample": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/dither.png"
+        },
+        "NoiseTexture": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/puddle_noise.png"
+        },
+        "NoiseTexture2": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/puddle_noise2.png"
+        },
+        "FogTexture": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/super_noise.png"
+        },
+        "VhsNoise": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/vhs_noise.png"
+        },
+        "CloudNoise1": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/puddle_noise.png"
+        },
+        "CloudNoise2": {
+            "type": "location",
+            "location": "spb-revamped:textures/shaders/clouds2.png"
+        },
+        "ShadowSampler": {
+            "type": "framebuffer",
+            "name": "spb-revamped:shadowmap:depth"
+        },
+        "SSAOSampler": {
+            "type": "framebuffer",
+            "name": "spb-revamped:ssao"
+        },
+        "WaterSampler": {
+            "type": "framebuffer",
+            "name": "spb-revamped:water"
+        },
+        "HighlightsSampler": {
+            "type": "framebuffer",
+            "name": "spb-revamped:highlight_blur"
+        },
+        "MixedSampler": {
+            "type": "framebuffer",
+            "name": "spb-revamped:mixed",
+            "sampler": 1
+        },
+        "DepthSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque_final:depth"
+        },
+        "TransparentSampler": {
+            "type": "framebuffer",
+            "name": "veil:transparent_final"
+        },
+        "TransparentDepthSampler": {
+            "type": "framebuffer",
+            "name": "veil:transparent_final:depth"
+        },
+        "TransparentCompatSampler": {
+            "type": "framebuffer",
+            "name": "veil:transparent",
+            "sampler": 0
+        },
+        "TransparentMatSampler": {
+            "type": "framebuffer",
+            "name": "veil:transparent",
+            "sampler": 3
+        },
+        "NormalSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque",
+            "sampler": 2
+        },
+        "OpaqueSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque_final"
+        },
+        "OpaqueCompatSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque",
+            "sampler": 0
+        },
+        "OpaqueAlbedoSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque",
+            "sampler": 1
+        },
+        "OpaqueMatSampler": {
+            "type": "framebuffer",
+            "name": "veil:opaque",
+            "sampler": 3
+        },
+        "HandSampler": {
+            "type": "framebuffer",
+            "name": "veil:first_person"
+        },
+        "HandDepth": {
+            "type": "framebuffer",
+            "name": "veil:first_person:depth"
+        },
+        "TotalDepth": {
+            "type": "framebuffer",
+            "name": "minecraft:main:depth"
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+

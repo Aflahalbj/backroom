@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+out/
+classes/
+
+# Eclipse / VS Code (Java extension) output
+bin/
+.classpath
+.project
+.settings/
+.metadata/
+.factorypath
+.vscode/
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Minecraft dev runs (runClient / runServer)
+run/
+runs/
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

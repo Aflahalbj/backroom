@@ -1,0 +1,326 @@
+{
+  "silence": {
+    "sounds": [
+      "spb-revamped:silence"
+    ]
+  },
+  "zoomin": {
+    "sounds": [
+      "spb-revamped:zoomin"
+    ]
+  },
+  "zoomout": {
+    "sounds": [
+      "spb-revamped:zoomout"
+    ]
+  },
+  "flashlight_click": {
+    "sounds": [
+      "spb-revamped:flashlight_click1",
+      "spb-revamped:flashlight_click2"
+    ]
+  },
+  "fluorescent_light": {
+    "sounds": [
+      "spb-revamped:fluorescent_light_hum"
+    ]
+  },
+  "fluorescent_light2": {
+    "sounds": [
+      "spb-revamped:fluorescent_light_hum2"
+    ]
+  },
+  "lights_out": {
+    "sounds": [
+      "spb-revamped:lights_out"
+    ]
+  },
+  "lights_on": {
+    "sounds": [
+      "spb-revamped:lights_on"
+    ]
+  },
+  "ambience": {
+    "sounds": [
+      "spb-revamped:ambience"
+    ]
+  },
+  "light_blink": {
+    "sounds": [
+      "spb-revamped:light_blink/light_blink1",
+      "spb-revamped:light_blink/light_blink2",
+      "spb-revamped:light_blink/light_blink3",
+      "spb-revamped:light_blink/light_blink4",
+      "spb-revamped:light_blink/light_blink5",
+      "spb-revamped:light_blink/light_blink6",
+      "spb-revamped:light_blink/light_blink7",
+      "spb-revamped:light_blink/light_blink8",
+      "spb-revamped:light_blink/light_blink8",
+      "spb-revamped:light_blink/light_blink8"
+    ]
+  },
+  "intercom_basic1": {
+    "sounds": [
+      "spb-revamped:level0/intercom_basic1"
+    ]
+  },
+  "intercom_basic2": {
+    "sounds": [
+      "spb-revamped:level0/intercom_basic2"
+    ]
+  },
+  "intercom_friend": {
+    "sounds": [
+      "spb-revamped:level0/intercom_friend"
+    ]
+  },
+  "intercom_reversed": {
+    "sounds": [
+      "spb-revamped:level0/intercom_reversed"
+    ]
+  },
+  "creepy_music1": {
+    "sounds": [
+      "spb-revamped:level0/creepy_music1"
+    ]
+  },
+  "creepy_music2": {
+    "sounds": [
+      "spb-revamped:level0/creepy_music2"
+    ]
+  },
+  "far_crowd": {
+    "sounds": [
+      "spb-revamped:level0/far_crowd"
+    ]
+  },
+  "level1_ambience1": {
+    "sounds": [
+      "spb-revamped:level1/level1_ambience1"
+    ]
+  },
+  "level1_ambience2": {
+    "sounds": [
+      "spb-revamped:level1/level1_ambience2"
+    ]
+  },
+  "level1_ambience3": {
+    "sounds": [
+      "spb-revamped:level1/level1_ambience3"
+    ]
+  },
+  "level1_ambience4": {
+    "sounds": [
+      "spb-revamped:level1/level1_ambience4"
+    ]
+  },
+  "sunset_transition": {
+    "sounds": [
+      "spb-revamped:poolrooms/sunset_transition"
+    ]
+  },
+  "midnight_transition": {
+    "sounds": [
+      "spb-revamped:poolrooms/midnight_transition"
+    ]
+  },
+  "sunset_transition_end": {
+    "sounds": [
+      "spb-revamped:poolrooms/sunset_transition_end"
+    ]
+  },
+  "swim": {
+    "sounds": [
+      "spb-revamped:swim/swim1",
+      "spb-revamped:swim/swim2",
+      "spb-revamped:swim/swim3",
+      "spb-revamped:swim/swim4",
+      "spb-revamped:swim/swim5",
+      "spb-revamped:swim/swim6",
+      "spb-revamped:swim/swim7"
+    ]
+  },
+  "poolrooms_ambience_noon": {
+    "sounds": [
+      "spb-revamped:poolrooms/poolrooms_ambience_noon"
+    ]
+  },
+  "poolrooms_ambience_sunset": {
+    "sounds": [
+      "spb-revamped:poolrooms/poolrooms_ambience_sunset"
+    ]
+  },
+  "poolrooms_splash1": {
+    "sounds": [
+      "spb-revamped:poolrooms/splash1"
+    ]
+  },
+  "poolrooms_splash2": {
+    "sounds": [
+      "spb-revamped:poolrooms/splash2"
+    ]
+  },
+  "poolrooms_drip1": {
+    "sounds": [
+      "spb-revamped:poolrooms/drip1"
+    ]
+  },
+  "poolrooms_drip2": {
+    "sounds": [
+      "spb-revamped:poolrooms/drip2"
+    ]
+  },
+  "falling": {
+    "sounds": [
+      "spb-revamped:cutscene/falling"
+    ]
+  },
+  "glitch": {
+    "sounds": [
+      "spb-revamped:cutscene/glitch"
+    ]
+  },
+  "noescape": {
+    "sounds": [
+      "spb-revamped:noescape"
+    ]
+  },
+  "skinwalker_ambience": {
+    "sounds": [
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience1",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience2",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience3",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience4",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience5",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience6",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience7",
+      "spb-revamped:skinwalker/ambience/skinwalker_ambience8"
+    ]
+  },
+  "skinwalker_sniff": {
+    "sounds": [
+      "spb-revamped:skinwalker/sniff/skinwalker_sniff1",
+      "spb-revamped:skinwalker/sniff/skinwalker_sniff2",
+      "spb-revamped:skinwalker/sniff/skinwalker_sniff3",
+      "spb-revamped:skinwalker/sniff/skinwalker_sniff4",
+      "spb-revamped:skinwalker/sniff/skinwalker_sniff5"
+    ]
+  },
+  "skinwalker_footstep": {
+    "sounds": [
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep1",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep2",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep3",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep4",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep5",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep6",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep7",
+      "spb-revamped:skinwalker/footstep/skinwalker_footstep8"
+    ]
+  },
+  "skinwalker_chase": {
+    "sounds": [
+      "spb-revamped:skinwalker/skinwalker_chase"
+    ]
+  },
+  "skinwalker_notice": {
+    "sounds": [
+      "spb-revamped:skinwalker/skinwalker_notice"
+    ]
+  },
+  "skinwalker_bone_crack": {
+    "sounds": [
+      "spb-revamped:skinwalker/reveal/bone_crack"
+    ]
+  },
+  "skinwalker_bone_crack_long": {
+    "sounds": [
+      "spb-revamped:skinwalker/reveal/bone_crack_long"
+    ]
+  },
+  "skinwalker_reveal": {
+    "sounds": [
+      "spb-revamped:skinwalker/reveal/reveal"
+    ]
+  },
+  "jumpscare": {
+    "sounds": [
+      "spb-revamped:skinwalker/jumpscare"
+    ]
+  },
+  "skinwalker_release": {
+    "sounds": [
+      "spb-revamped:skinwalker/release"
+    ]
+  },
+  "smiler_laugh": {
+    "sounds": [
+      "spb-revamped:smiler/smiler_laugh"
+    ]
+  },
+  "smiler_glitch": {
+    "sounds": [
+      "spb-revamped:smiler/smiler_glitch"
+    ]
+  },
+  "carpet_run": {
+    "sounds": [
+      "spb-revamped:carpet/running/carpet_run_1",
+      "spb-revamped:carpet/running/carpet_run_2",
+      "spb-revamped:carpet/running/carpet_run_3",
+      "spb-revamped:carpet/running/carpet_run_4",
+      "spb-revamped:carpet/running/carpet_run_5",
+      "spb-revamped:carpet/running/carpet_run_6",
+      "spb-revamped:carpet/running/carpet_run_7"
+    ]
+  },
+  "carpet_walk": {
+    "sounds": [
+      "spb-revamped:carpet/walking/carpet_walk_1",
+      "spb-revamped:carpet/walking/carpet_walk_2",
+      "spb-revamped:carpet/walking/carpet_walk_3",
+      "spb-revamped:carpet/walking/carpet_walk_4",
+      "spb-revamped:carpet/walking/carpet_walk_5"
+    ]
+  },
+  "concrete_run": {
+    "sounds": [
+      "spb-revamped:concrete/running/concrete_run_1",
+      "spb-revamped:concrete/running/concrete_run_2",
+      "spb-revamped:concrete/running/concrete_run_3",
+      "spb-revamped:concrete/running/concrete_run_4",
+      "spb-revamped:concrete/running/concrete_run_5",
+      "spb-revamped:concrete/running/concrete_run_6",
+      "spb-revamped:concrete/running/concrete_run_7",
+      "spb-revamped:concrete/running/concrete_run_8",
+      "spb-revamped:concrete/running/concrete_run_9",
+      "spb-revamped:concrete/running/concrete_run_10"
+    ]
+  },
+  "concrete_walk": {
+    "sounds": [
+      "spb-revamped:concrete/walking/concrete_walk_1",
+      "spb-revamped:concrete/walking/concrete_walk_2",
+      "spb-revamped:concrete/walking/concrete_walk_3",
+      "spb-revamped:concrete/walking/concrete_walk_4",
+      "spb-revamped:concrete/walking/concrete_walk_5",
+      "spb-revamped:concrete/walking/concrete_walk_6",
+      "spb-revamped:concrete/walking/concrete_walk_7"
+    ]
+  },
+  "emergency_light_alarm": {
+    "sounds": [
+      "spb-revamped:emergency_light_alarm"
+    ]
+  },
+  "walker_footstep": {
+    "sounds": [
+      "spb-revamped:walker/footstep/walker-step"
+    ]
+  },
+  "walker_screech": {
+    "sounds": [
+      "spb-revamped:walker/walker-start-screech"
+    ]
+  }
+}

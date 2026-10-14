@@ -1,0 +1,11 @@
+{
+  "fragment": "spb-revamped:warp_solid",
+  "vertex": "spb-revamped:warp_solid",
+  "definitions": [
+    "WARP",
+    "POOLROOMS"
+  ],
+  "textures": {
+    "PoleTexture": "spb-revamped:textures/shaders/utility_pole_color.png"
+  }
+}
