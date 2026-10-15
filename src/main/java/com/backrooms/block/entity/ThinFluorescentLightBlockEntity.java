@@ -2,7 +2,10 @@ package com.backrooms.block.entity;
 
 import com.backrooms.block.Lights;
 import com.backrooms.block.ModBlocks;
+import com.backrooms.world.events.LightState;
+import com.backrooms.world.events.WorldEventsManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -12,8 +15,8 @@ import net.minecraft.world.level.block.state.BlockState;
 /**
  * Port sisi server dari {@code com.sp.block.entity.ThinFluorescentLightBlockEntity}:
  * neon tipis yang bertetangga (utara, barat, lalu bawah) menyalin state
- * tetangganya dengan {@code copy=true}; sisanya selalu dikembalikan ke
- * menyala dan tidak blackout, karena event lampu aslinya tidak di-port.
+ * tetangganya dengan {@code copy=true}; sisanya mengikuti kondisi lampu level
+ * (blackout dan berkedip seperti aslinya, selain itu menyala).
  */
 public class ThinFluorescentLightBlockEntity extends BlockEntity {
 
@@ -22,6 +25,7 @@ public class ThinFluorescentLightBlockEntity extends BlockEntity {
     public boolean playingSound;
     public boolean prevOn;
     public int ticks = 0;
+    public final int randInt = new java.util.Random().nextInt(1, 8);
     /** Lampu Veil di klien (lihat {@code com.backrooms.client.light.LightTicks}). */
     public Object clientLight;
 
@@ -43,7 +47,7 @@ public class ThinFluorescentLightBlockEntity extends BlockEntity {
         this.currentState = state;
         ++this.ticks;
         if (!level.isClientSide) {
-            serverTick(level, pos, state);
+            this.serverTick(level, pos, state);
         } else {
             com.backrooms.client.light.LightTicks.thinFluorescent(level, pos, state, this);
         }
@@ -54,7 +58,7 @@ public class ThinFluorescentLightBlockEntity extends BlockEntity {
         this.prevOn = now.hasProperty(Lights.ON) && now.getValue(Lights.ON);
     }
 
-    private static void serverTick(Level level, BlockPos pos, BlockState state) {
+    private void serverTick(Level level, BlockPos pos, BlockState state) {
         Block thin = ModBlocks.THIN_FLUORESCENT_LIGHT.get();
 
         BlockState north = level.getBlockState(pos.north());
@@ -70,8 +74,21 @@ public class ThinFluorescentLightBlockEntity extends BlockEntity {
             if (state.getValue(Lights.COPY)) {
                 level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.COPY, false));
             }
-            level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.BLACKOUT, false));
-            if (!state.getValue(Lights.ON)) {
+            // Aslinya level yang tidak dikenal dianggap Poolrooms (tanpa kondisi lampu).
+            LightState lightState = WorldEventsManager.lightStateAt((ServerLevel) level, pos.getX());
+            boolean blackouted = lightState == LightState.BLACKOUT;
+            if (blackouted) {
+                level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.BLACKOUT, true));
+                this.playingSound = false;
+            } else {
+                level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.BLACKOUT, false));
+            }
+            if (lightState == LightState.FLICKER && !state.getValue(Lights.BLACKOUT)) {
+                if (this.ticks % this.randInt == 0) {
+                    int i = RandomSource.create().nextIntBetweenInclusive(1, 2);
+                    level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.ON, i == 1));
+                }
+            } else if (!state.getValue(Lights.ON)) {
                 level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.ON, true));
             }
         }

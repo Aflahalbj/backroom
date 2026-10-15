@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "El fenerin ıslandı. ",
   "spb-revamped.flashlight.wet2": "Artık çalışmıyor",
   "intro.backrooms": "The Backrooms",
-  "intro.credit": "A Mod By "
+  "intro.credit": "A Mod By ",
+  "death.attack.skin_walker": "%1$s Skin Walker tarafından öldürüldü!",
+  "skinwalker.flavor-text.move1": "Hareket edemiyorsun. ",
+  "skinwalker.flavor-text.move2": "Bu artık senin vücudun değil",
+  "skinwalker.flavor-text.inventory": "Bu artık senin envanterin değil",
+  "skinwalker.flavor-text.leave": "Kaçış Yok",
+  "skinwalker.flavor-text.chat": "Çığlıklarını kimse duyamaz",
+  "skinwalker.flavor-text.taunt1": "Hadi devam et",
+  "skinwalker.flavor-text.taunt2": "Arkadaşlarını çağırmayı dene (T)",
+  "skinwalker.flavor-text.taunt3": "Hala fark etmediysen vücudun çalındı. ",
+  "skinwalker.flavor-text.taunt4": "Salak olma. Başka oyunculara DM atma"
 }

@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Tu linterna se mojó.",
   "spb-revamped.flashlight.wet2": "Ya no funciona",
   "intro.backrooms": "Los Backrooms",
-  "intro.credit": "Un mod de "
+  "intro.credit": "Un mod de ",
+  "death.attack.skin_walker": "¡%1$s fue eliminado por un Skin Walker!",
+  "skinwalker.flavor-text.move1": "No puedes mover nada.",
+  "skinwalker.flavor-text.move2": "Ya no es tu cuerpo",
+  "skinwalker.flavor-text.inventory": "Ese ya no es tu inventario",
+  "skinwalker.flavor-text.leave": "No hay salida",
+  "skinwalker.flavor-text.chat": "Nadie puede oír tus gritos",
+  "skinwalker.flavor-text.taunt1": "Adelante",
+  "skinwalker.flavor-text.taunt2": "Intenta llamar a tus compas (T)",
+  "skinwalker.flavor-text.taunt3": "Por si no era obvio, ya te robaron la piel.",
+  "skinwalker.flavor-text.taunt4": "No seas gacho. No le mandes mensajes a los demás jugadores"
 }

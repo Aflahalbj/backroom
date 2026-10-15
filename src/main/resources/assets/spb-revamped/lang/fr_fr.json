@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Votre lampe torche est mouillée.",
   "spb-revamped.flashlight.wet2": "Elle ne fonctionne plus",
   "intro.backrooms": "Les Backrooms",
-  "intro.credit": "Un Mod de "
+  "intro.credit": "Un Mod de ",
+  "death.attack.skin_walker": "%1$s a été tué par un Skin Walker!",
+  "skinwalker.flavor-text.move1": "Vous ne pouvez rien bouger.",
+  "skinwalker.flavor-text.move2": "Ce n’est plus votre corps",
+  "skinwalker.flavor-text.inventory": "Ce n’est plus votre inventaire",
+  "skinwalker.flavor-text.leave": "Il n'y a pas d'échappatoire",
+  "skinwalker.flavor-text.chat": "Personne ne t'entend crier",
+  "skinwalker.flavor-text.taunt1": "Vas-y",
+  "skinwalker.flavor-text.taunt2": "Essaye d'appeler tes amis (T)",
+  "skinwalker.flavor-text.taunt3": "Si ce n’est pas déjà évident, ta peau a été volée.",
+  "skinwalker.flavor-text.taunt4": "Ne sois pas un idiot. Ne MP aucun autre joueur"
 }

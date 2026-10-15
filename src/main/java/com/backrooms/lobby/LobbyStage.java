@@ -17,20 +17,22 @@ public record LobbyStage(BlockPos pos, Direction facing, int reach) {
 
     /** Jarak antar pemain dalam satu baris. */
     public static final double SPACING = 1.4D;
+    /** Jarak antar pemain di baris yang penuh, supaya tetap di dalam lebar panggung (5 blok). */
+    public static final double FULL_ROW_SPACING = 1.2D;
     /** Seberapa jauh baris belakang dari baris depan. */
     public static final double BACK_ROW = 1.5D;
-    /** Satu baris berisi paling banyak sekian pemain. */
-    public static final int ROW_SIZE = 4;
+    /** Satu baris berisi paling banyak sekian pemain (10 pemain = dua baris). */
+    public static final int ROW_SIZE = 5;
 
     /**
-     * Posisi kaki pemain ke-{@code index} (urutan room, host = 0) dari
-     * {@code count} pemain: 4 pertama di baris depan, sisanya di belakang,
+     * Posisi kaki pemain ke-{@code index} (urutan room) dari
+     * {@code count} pemain: 5 pertama di baris depan, sisanya di belakang,
      * masing-masing diisi dari tengah ke luar.
      */
     public Vec3 slot(int index, int count) {
         int row = index / ROW_SIZE;
         int inRow = Math.min(ROW_SIZE, count - row * ROW_SIZE);
-        double lateral = centerOut(index % ROW_SIZE, inRow) * SPACING;
+        double lateral = centerOut(index % ROW_SIZE, inRow) * (inRow >= ROW_SIZE ? FULL_ROW_SPACING : SPACING);
         Direction right = facing.getClockWise();
         double back = row * BACK_ROW;
         return Vec3.atBottomCenterOf(pos)

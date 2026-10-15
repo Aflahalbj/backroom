@@ -31,11 +31,18 @@ public class LobbyScreen extends LobbyPageScreen {
 
         int bigW = 124, bigH = 38;
         int bigX = width - bigW - 14, bigY = height - bigH - 14;
-        addRenderableWidget(new GameButton(bigX, bigY, bigW, bigH, GameButton.Style.YELLOW, Ui.Icon.PLUS,
-                "Buat room", Ui.Size.BIG, () -> LobbyClient.send(LobbyActionC2S.Action.CREATE_ROOM)).hero());
-        addRenderableWidget(new GameButton(bigX - 112, bigY + 8, 104, 30, GameButton.Style.ORANGE, Ui.Icon.PEOPLE,
-                "Gabung room", Ui.Size.NORMAL, () -> LobbyClient.openPage(LobbyClient.Page.JOIN))
-                .badge(() -> LobbyClient.rooms().size()));
+        if (LobbyClient.canCreateRoom()) {
+            addRenderableWidget(new GameButton(bigX, bigY, bigW, bigH, GameButton.Style.YELLOW, Ui.Icon.PLUS,
+                    "Buat room", Ui.Size.BIG, () -> LobbyClient.send(LobbyActionC2S.Action.CREATE_ROOM)).hero());
+            addRenderableWidget(new GameButton(bigX - 112, bigY + 8, 104, 30, GameButton.Style.ORANGE, Ui.Icon.PEOPLE,
+                    "Gabung room", Ui.Size.NORMAL, () -> LobbyClient.openPage(LobbyClient.Page.JOIN))
+                    .badge(() -> LobbyClient.rooms().size()));
+        } else {
+            // Bukan OP: tidak bisa membuat room, jadi Gabung room yang jadi tombol utama.
+            addRenderableWidget(new GameButton(bigX, bigY, bigW, bigH, GameButton.Style.YELLOW, Ui.Icon.PEOPLE,
+                    "Gabung room", Ui.Size.BIG, () -> LobbyClient.openPage(LobbyClient.Page.JOIN)).hero()
+                    .badge(() -> LobbyClient.rooms().size()));
+        }
     }
 
     @Override

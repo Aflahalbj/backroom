@@ -38,6 +38,7 @@ public class FluorescentLightSoundInstance extends AbstractTickableSoundInstance
         Level world = this.entity.getLevel();
         if (BackroomsLevel.at(this.player.level(), this.player.getX()) == BackroomsLevel.LEVEL0 && world != null) {
             if (!this.entity.isRemoved() && this.entity.getBlockPos().closerToCenterThan(this.player.position(), 16.0D)
+                    && com.backrooms.client.skinwalker.ClientWorldEvents.lightState() != com.backrooms.world.events.LightState.BLACKOUT
                     && this.entity.currentState == ModBlocks.FLUORESCENT_LIGHT.get().defaultBlockState().setValue(Lights.ON, true)
                     && !this.entity.currentState.getValue(Lights.BLACKOUT) && !CameraEffect.blackScreen) {
                 this.pitch = 1.0F;

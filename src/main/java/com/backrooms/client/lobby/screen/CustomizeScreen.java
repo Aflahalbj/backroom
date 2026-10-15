@@ -22,7 +22,9 @@ import java.util.function.BooleanSupplier;
 /**
  * Lemari penampilan: panel di kanan dengan tab Latar / Pose / Senjata / Musik dan
  * kartu pilihan; karakter bergeser ke kiri supaya tetap terlihat, dan
- * setiap pilihan langsung tampak padanya.
+ * setiap pilihan langsung tampak padanya. Di dalam room, tab Latar hanya
+ * untuk owner (latar room ikut pilihannya); anggota lain hanya Pose,
+ * Senjata, dan Musik.
  */
 public class CustomizeScreen extends LobbyPageScreen {
 
@@ -62,13 +64,13 @@ public class CustomizeScreen extends LobbyPageScreen {
         addRenderableWidget(new IconButton(12, 10, 24, Ui.Icon.BACK, "Kembali", false, LobbyClient::back));
 
         int x = panelX() + 10, w = panelW() - 20;
-        Tab[] tabs = Tab.values();
-        String[] names = {"Latar", "Pose", "Senjata", "Musik"};
+        Tab[] tabs = canPickBackground() ? Tab.values() : new Tab[] {Tab.POSE, Tab.SENJATA, Tab.MUSIK};
+        if (tab == Tab.LATAR && !canPickBackground()) tab = Tab.POSE;
         int tabW = (w - 4 * (tabs.length - 1)) / tabs.length;
         for (int i = 0; i < tabs.length; i++) {
             Tab t = tabs[i];
             addRenderableWidget(new GameButton(x + i * (tabW + 4), panelY() + 10, tabW, 22,
-                    tab == t ? GameButton.Style.YELLOW : GameButton.Style.BLUE, null, names[i], Ui.Size.NORMAL, () -> {
+                    tab == t ? GameButton.Style.YELLOW : GameButton.Style.BLUE, null, tabName(t), Ui.Size.NORMAL, () -> {
                 tab = t;
                 rebuildWidgets();
             }));
@@ -118,15 +120,26 @@ public class CustomizeScreen extends LobbyPageScreen {
         }
     }
 
+    /** Latar boleh dipilih di luar room, atau oleh owner room. */
+    private static boolean canPickBackground() {
+        return LobbyClient.room() == null || LobbyClient.isOwner();
+    }
+
+    private static String tabName(Tab t) {
+        return switch (t) {
+            case LATAR -> "Latar";
+            case POSE -> "Pose";
+            case SENJATA -> "Senjata";
+            case MUSIK -> "Musik";
+        };
+    }
+
     @Override
     protected void renderContent(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         Ui.draw(g, Ui.text("Penampilan", Ui.Size.BIG), 42, 15, Ui.WHITE, true);
         Ui.nine(g, Ui.Tex.PANEL, panelX(), panelY(), panelW(), panelH());
         int x = panelX() + 10;
         int y = panelY() + 42;
-        if (tab == Tab.LATAR && LobbyClient.room() != null && !LobbyClient.isHost()) {
-            Ui.draw(g, Ui.text("Di dalam room, latar ikut pilihan host.", Ui.Size.SMALL), x, y + 3 * 38 + 4, Ui.DIM, false);
-        }
         if (tab == Tab.SENJATA && !LobbyWeapons.available()) {
             int rows = (LobbyWeapon.values().length + 1) / 2;
             Ui.draw(g, Ui.text("Pasang mod TACZ untuk memakai senjata.", Ui.Size.SMALL), x, y + rows * 34 + 4, Ui.DIM, false);

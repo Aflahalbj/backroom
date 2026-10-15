@@ -55,14 +55,16 @@ public class JoinRoomScreen extends LobbyPageScreen {
                 LobbyClient::back));
         List<RoomInfo.Summary> rooms = LobbyClient.rooms();
         if (rooms.isEmpty()) {
-            addRenderableWidget(new GameButton(width / 2 - 56, listY() + 70, 112, 32, GameButton.Style.YELLOW, Ui.Icon.PLUS,
-                    "Buat room", Ui.Size.BIG, () -> LobbyClient.send(LobbyActionC2S.Action.CREATE_ROOM)).hero());
+            if (LobbyClient.canCreateRoom()) {
+                addRenderableWidget(new GameButton(width / 2 - 56, listY() + 70, 112, 32, GameButton.Style.YELLOW, Ui.Icon.PLUS,
+                        "Buat room", Ui.Size.BIG, () -> LobbyClient.send(LobbyActionC2S.Action.CREATE_ROOM)).hero());
+            }
             return;
         }
         scroll = Mth.clamp(scroll, 0, Math.max(0, rooms.size() - visibleRows()));
         for (int i = 0; i < visibleRows() && scroll + i < rooms.size(); i++) {
             RoomInfo.Summary room = rooms.get(scroll + i);
-            boolean full = room.members() >= RoomInfo.MAX_MEMBERS;
+            boolean full = room.players() >= RoomInfo.MAX_PLAYERS;
             GameButton join = new GameButton(panelX() + panelW() - 74, listY() + i * ROW + 5, 62, 22,
                     full ? GameButton.Style.GRAY : GameButton.Style.YELLOW, null, full ? "Penuh" : "Gabung", Ui.Size.NORMAL,
                     () -> LobbyClient.send(LobbyActionC2S.Action.JOIN_ROOM, room.id()));
@@ -83,7 +85,8 @@ public class JoinRoomScreen extends LobbyPageScreen {
             int cx = width / 2;
             Ui.icon(g, Ui.Icon.PEOPLE, cx - 14, listY() + 6, 28);
             Ui.drawCentered(g, Ui.text("Belum ada room aktif", Ui.Size.BIG), cx, listY() + 40, Ui.WHITE, true);
-            Ui.drawCentered(g, Ui.text("Buat room dan ajak temanmu.", Ui.Size.SMALL), cx, listY() + 56, Ui.DIM, false);
+            Ui.drawCentered(g, Ui.text(LobbyClient.canCreateRoom() ? "Buat room dan ajak temanmu."
+                    : "Tunggu OP membuat room.", Ui.Size.SMALL), cx, listY() + 56, Ui.DIM, false);
             return;
         }
         for (int i = 0; i < visibleRows() && scroll + i < rooms.size(); i++) {
@@ -92,9 +95,10 @@ public class JoinRoomScreen extends LobbyPageScreen {
             Ui.nine(g, Ui.Tex.CARD, x + 10, ry, w - 20, ROW - 4);
             Component name = Ui.fit(Ui.text(room.name(), Ui.Size.NORMAL), w - 190);
             Ui.drawMiddle(g, name, x + 18, ry + 3, 12, Ui.WHITE, true);
-            Ui.drawMiddle(g, Ui.fit(Ui.text("Host: " + room.hostName(), Ui.Size.SMALL), w - 190), x + 18, ry + 16, 10, Ui.DIM, false);
+            String detail = "Owner: " + room.ownerName() + "  |  " + RoomInfo.teamMode(room.teamSize());
+            Ui.drawMiddle(g, Ui.fit(Ui.text(detail, Ui.Size.SMALL), w - 190), x + 18, ry + 16, 10, Ui.DIM, false);
             int px = x + w - 168;
-            int count = pill(g, room.members() + "/" + RoomInfo.MAX_MEMBERS, px, ry + 9, 0xCC0B1022, Ui.WHITE);
+            int count = pill(g, room.players() + "/" + RoomInfo.MAX_PLAYERS, px, ry + 9, 0xCC0B1022, Ui.WHITE);
             int status = room.state() == RoomState.PLAYING ? Ui.RED : room.state() == RoomState.BUILDING ? 0xFFF5A623 : Ui.GREEN;
             pill(g, room.state() == RoomState.PLAYING ? "Sedang main" : room.state() == RoomState.BUILDING ? "Bersiap" : "Menunggu",
                     px + count + 4, ry + 9, status, Ui.WHITE);

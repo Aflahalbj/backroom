@@ -1,0 +1,213 @@
+package com.backrooms.entity.ai.goals;
+
+import com.backrooms.compat.voicechat.BackroomsVoicechatPlugin;
+import com.backrooms.component.SkinWalkerComponent;
+import com.backrooms.entity.custom.SkinWalkerEntity;
+import de.maxhenkel.voicechat.api.ServerLevel;
+import de.maxhenkel.voicechat.api.VoicechatServerApi;
+import de.maxhenkel.voicechat.api.audiochannel.AudioPlayer;
+import de.maxhenkel.voicechat.api.audiochannel.LocationalAudioChannel;
+import java.util.Vector;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.ai.goal.Goal;
+
+/**
+ * Port dari {@code com.sp.entity.ai.goals.SpeakGoal}: Skinwalker memutar
+ * ulang potongan suara korbannya (direkam lewat Simple Voice Chat), dan
+ * dalam wujud asli suaranya dirusak.
+ *
+ * <p>Aslinya membuat {@code ServerLevelImpl} milik voice chat secara langsung;
+ * di sini lewat {@link VoicechatServerApi#fromServerLevel} yang menghasilkan
+ * objek yang sama tapi tidak bergantung pada kelas internal voice chat.
+ */
+public class SpeakGoal extends Goal {
+    private final RandomSource random = RandomSource.create();
+    private final SkinWalkerEntity entity;
+    private final SkinWalkerComponent component;
+    private int actCooldown;
+    public ServerLevel serverLevel = null;
+    public LocationalAudioChannel audioChannel;
+    public AudioPlayer audioPlayer;
+
+    public SpeakGoal(SkinWalkerEntity entity) {
+        this.entity = entity;
+        this.component = entity.getSkinWalkerComponent();
+    }
+
+    @Override
+    public boolean canUse() {
+        return this.entity.isAlive();
+    }
+
+    @Override
+    public void start() {
+        this.actCooldown = this.adjustedTickDelay(40);
+    }
+
+    @Override
+    public void stop() {
+        if (this.audioPlayer != null) {
+            this.audioPlayer.stopPlaying();
+        }
+    }
+
+    @Override
+    public void tick() {
+        if (!this.entity.level().isClientSide) {
+            if (this.component.shouldBeginReveal()) {
+                if (this.audioPlayer != null) {
+                    this.audioPlayer.stopPlaying();
+                }
+                return;
+            }
+
+            if (this.actCooldown > 0) {
+                --this.actCooldown;
+                return;
+            }
+
+            this.playRandomPlayerSounds();
+            this.setRandomActCoolDown();
+        }
+    }
+
+    private void setRandomActCoolDown() {
+        this.actCooldown = this.adjustedTickDelay(this.random.nextIntBetweenInclusive(60, 150));
+    }
+
+    private void playRandomPlayerSounds() {
+        if (this.entity.getServer() != null) {
+            VoicechatServerApi api = BackroomsVoicechatPlugin.voicechatApi;
+            if (api == null) {
+                return;
+            }
+            net.minecraft.server.level.ServerLevel level = this.entity.getServer().getLevel(this.entity.level().dimension());
+            if (this.serverLevel == null) {
+                this.serverLevel = api.fromServerLevel(level);
+            }
+            if (!this.serverLevel.getServerLevel().equals(level)) {
+                this.serverLevel = api.fromServerLevel(level);
+            }
+
+            if (!BackroomsVoicechatPlugin.randomSpeakingList.isEmpty()) {
+                Vector<short[]> recordings = BackroomsVoicechatPlugin.randomSpeakingList.get(this.component.getTargetPlayerUUID());
+                if (BackroomsVoicechatPlugin.randomSpeakingList.containsKey(this.component.getTargetPlayerUUID())) {
+                    if (recordings != null) {
+                        if (!recordings.isEmpty()) {
+                            short[] data = recordings.get(this.random.nextIntBetweenInclusive(0, recordings.size() - 1));
+                            // Rekaman bisa null (plugin aslinya menyimpan potongan kosong); aslinya voice chat lalu
+                            // melempar NullPointerException di thread-nya. Hasilnya sama: tidak ada suara.
+                            if (data == null) {
+                                return;
+                            }
+                            if (this.component.isInTrueForm() && data != null && data.length > 0) {
+                                data = this.demonizeVoice(data);
+                            }
+
+                            if (this.audioChannel == null) {
+                                this.audioChannel = api.createLocationalAudioChannel(this.entity.getUUID(), this.serverLevel, api.createPosition(this.entity.getX(), this.entity.getY(), this.entity.getZ()));
+                            }
+
+                            if (this.audioChannel != null) {
+                                this.audioChannel.updateLocation(api.createPosition(this.entity.getX(), this.entity.getY(), this.entity.getZ()));
+                                if (this.audioPlayer == null) {
+                                    this.audioPlayer = api.createAudioPlayer(this.audioChannel, api.createEncoder(), data);
+                                }
+
+                                if (!this.audioPlayer.isPlaying()) {
+                                    this.audioPlayer = api.createAudioPlayer(this.audioChannel, api.createEncoder(), data);
+                                    this.audioPlayer.startPlaying();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private short[] demonizeVoice(short[] data) {
+        switch (this.random.nextIntBetweenInclusive(0, 3)) {
+            case 0 -> data = this.applyStutter(data);
+            case 1 -> data = this.reverseData(data);
+            default -> data = this.bitCrush(data, 8);
+        }
+
+        if (this.random.nextIntBetweenInclusive(0, 3) < 2) {
+            data = this.demonizeVoice(data);
+        }
+        return data;
+    }
+
+    private short[] bitCrush(short[] data, int resolution) {
+        short[] crushedData = new short[data.length];
+        int mask = -(1 << 16 - resolution);
+        for (int i = 0; i < data.length; ++i) {
+            crushedData[i] = (short) (data[i] & mask);
+        }
+        return crushedData;
+    }
+
+    private short[] applyStutter(short[] data) {
+        short[] stutteredData = new short[data.length];
+        int stutterSize = 500;
+        int stutterInterval = 1000;
+        System.arraycopy(data, 0, stutteredData, 0, data.length);
+        for (int i = 0; i < data.length; i += stutterInterval) {
+            for (int j = 0; j < stutterSize && i + j < data.length; ++j) {
+                stutteredData[i + j] = data[i];
+            }
+        }
+        return stutteredData;
+    }
+
+    private short[] reverseData(short[] data) {
+        short[] reversedData = new short[data.length];
+        for (int i = 0; i < data.length; ++i) {
+            reversedData[i] = data[data.length - 1 - i];
+        }
+        return reversedData;
+    }
+
+    private short[] addStaticNoise(short[] data) {
+        short[] noisyData = new short[data.length];
+        System.arraycopy(data, 0, noisyData, 0, data.length);
+        for (int i = 0; i < noisyData.length; ++i) {
+            if (this.random.nextDouble() < 0.1D) {
+                noisyData[i] = (short) (this.random.nextInt(2000) - 1000);
+            }
+        }
+        return noisyData;
+    }
+
+    private short[] warpSpeed(short[] data) {
+        int chunkSize = 200;
+        float speedFactor = 0.8F + (float) this.random.nextDouble() * 0.4F;
+        short[] warpedData = new short[(int) ((float) data.length * speedFactor)];
+        int i = 0;
+        for (int j = 0; i < data.length && j < warpedData.length; j += (int) ((float) chunkSize * speedFactor)) {
+            int copyLength = Math.min(chunkSize, data.length - i);
+            System.arraycopy(data, i, warpedData, j, Math.min(copyLength, warpedData.length - j));
+            i += chunkSize;
+        }
+        return warpedData;
+    }
+
+    private short[] reverseSegments(short[] data) {
+        short[] reversedData = new short[data.length];
+        System.arraycopy(data, 0, reversedData, 0, data.length);
+        int segmentSize = 500;
+        for (int i = 0; i < data.length; i += segmentSize * 2) {
+            if (this.random.nextBoolean()) {
+                int start = i;
+                for (int end = Math.min(i + segmentSize, data.length); start < end; --end) {
+                    short temp = reversedData[start];
+                    reversedData[start] = reversedData[end - 1];
+                    reversedData[end - 1] = temp;
+                    ++start;
+                }
+            }
+        }
+        return reversedData;
+    }
+}

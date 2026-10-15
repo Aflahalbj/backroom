@@ -2,6 +2,7 @@ package com.backrooms.client.lobby;
 
 import com.backrooms.client.CameraEffect;
 import com.backrooms.client.ClientConfig;
+import com.backrooms.client.lobby.screen.AddPlayerScreen;
 import com.backrooms.client.lobby.screen.CustomizeScreen;
 import com.backrooms.client.lobby.screen.CutsceneScreen;
 import com.backrooms.client.lobby.screen.JoinRoomScreen;
@@ -12,6 +13,7 @@ import com.backrooms.lobby.LobbyPose;
 import com.backrooms.lobby.LobbyWeapon;
 import com.backrooms.lobby.LobbyStage;
 import com.backrooms.lobby.RoomInfo;
+import com.backrooms.lobby.RoomState;
 import com.backrooms.mixin.CameraAccessor;
 import com.backrooms.network.CutsceneS2C;
 import com.backrooms.network.LobbyActionC2S;
@@ -20,6 +22,7 @@ import com.backrooms.network.ModNetwork;
 import com.backrooms.sound.ModSounds;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Camera;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.PauseScreen;
@@ -31,6 +34,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
@@ -57,7 +61,7 @@ import java.util.UUID;
  */
 public final class LobbyClient {
 
-    public enum Page { MAIN, JOIN, CUSTOMIZE, ROOM }
+    public enum Page { MAIN, JOIN, CUSTOMIZE, ROOM, ADD_PLAYER }
 
     /** Lama animasi noclip di klien (server memindahkan pemain setelah 60 tick). */
     private static final long NOCLIP_SINK_START = 450L;
@@ -73,6 +77,8 @@ public final class LobbyClient {
     private static int percent;
     private static RoomInfo room;
     private static List<RoomInfo.Summary> rooms = List.of();
+    /** Owner: pemain di lobby yang bisa dimasukkan ke room. */
+    private static List<RoomInfo.Candidate> candidates = List.of();
     /** Naik setiap ada perubahan; layar membangun ulang tombolnya kalau berubah. */
     private static int version;
 
@@ -157,6 +163,15 @@ public final class LobbyClient {
             page = Page.MAIN;
             customizeReturn = Page.MAIN;
         }
+        if (page == Page.ADD_PLAYER && !canAddPlayers()) {
+            page = info != null ? Page.ROOM : Page.MAIN;
+        }
+        if (info == null) candidates = List.of();
+        version++;
+    }
+
+    public static void onCandidates(List<RoomInfo.Candidate> list) {
+        candidates = list;
         version++;
     }
 
@@ -194,6 +209,21 @@ public final class LobbyClient {
         ModNetwork.CHANNEL.sendToServer(new LobbyActionC2S(LobbyActionC2S.Action.KICK, 0, member.toString()));
     }
 
+    /** Owner: jadikan anggota (atau diri sendiri) pemain atau host. */
+    public static void setRole(UUID member, RoomInfo.Role role) {
+        ModNetwork.CHANNEL.sendToServer(new LobbyActionC2S(LobbyActionC2S.Action.SET_ROLE, role.ordinal(), member.toString()));
+    }
+
+    /** Owner: masukkan pemain di lobby langsung ke room. */
+    public static void addPlayer(UUID player) {
+        ModNetwork.CHANNEL.sendToServer(new LobbyActionC2S(LobbyActionC2S.Action.ADD_PLAYER, 0, player.toString()));
+    }
+
+    /** Owner: pindahkan pemain ke tim berikutnya. */
+    public static void moveTeam(UUID member) {
+        ModNetwork.CHANNEL.sendToServer(new LobbyActionC2S(LobbyActionC2S.Action.MOVE_TEAM, 0, member.toString()));
+    }
+
     // ========================================================= getter
 
     public static boolean isActive() { return active; }
@@ -204,6 +234,7 @@ public final class LobbyClient {
     public static LobbyWeapon weapon() { return LobbyWeapon.byId(weapon); }
     public static RoomInfo room() { return room; }
     public static List<RoomInfo.Summary> rooms() { return rooms; }
+    public static List<RoomInfo.Candidate> candidates() { return candidates; }
     public static int version() { return version; }
     public static long enteredAt() { return enteredAt; }
     public static long tapeChangeAt() { return tapeChangeAt; }
@@ -234,9 +265,21 @@ public final class LobbyClient {
         }
     }
 
-    public static boolean isHost() {
+    /** Pemain ini owner room-nya (pembuat room: yang mengatur dan menekan Mulai). */
+    public static boolean isOwner() {
         Minecraft client = Minecraft.getInstance();
-        return room != null && client.player != null && room.host().equals(client.player.getUUID());
+        return room != null && client.player != null && room.isOwner(client.player.getUUID());
+    }
+
+    /** Owner room yang masih menunggu boleh memasukkan pemain langsung (server juga memeriksanya). */
+    public static boolean canAddPlayers() {
+        return isOwner() && room.state() == RoomState.WAITING;
+    }
+
+    /** Hanya OP yang boleh membuat room (server juga memeriksanya). */
+    public static boolean canCreateRoom() {
+        Minecraft client = Minecraft.getInstance();
+        return client.player != null && client.player.hasPermissions(2);
     }
 
     /** Untuk pratinjau animasi: arah badan karakter relatif ke kamera (derajat). */
@@ -272,6 +315,7 @@ public final class LobbyClient {
             customizeReturn = page == Page.ROOM ? Page.ROOM : Page.MAIN;
         }
         if (target == Page.JOIN) send(LobbyActionC2S.Action.REQUEST_LIST);
+        if (target == Page.ADD_PLAYER) send(LobbyActionC2S.Action.REQUEST_CANDIDATES);
         page = target;
         Minecraft.getInstance().setScreen(createPage());
     }
@@ -281,8 +325,9 @@ public final class LobbyClient {
         openPage(page == Page.CUSTOMIZE ? customizeReturn : room != null ? Page.ROOM : Page.MAIN);
     }
 
-    /** Halaman yang seharusnya tampil: selama ikut room, selalu layar room (kecuali Customize). */
+    /** Halaman yang seharusnya tampil: selama ikut room, selalu layar room (kecuali Customize dan Tambah pemain). */
     private static Page effectivePage() {
+        if (page == Page.ADD_PLAYER) return canAddPlayers() ? page : room != null ? Page.ROOM : Page.MAIN;
         return room != null && page != Page.CUSTOMIZE ? Page.ROOM : page;
     }
 
@@ -292,6 +337,7 @@ public final class LobbyClient {
             case JOIN -> new JoinRoomScreen();
             case CUSTOMIZE -> new CustomizeScreen();
             case ROOM -> new RoomScreen();
+            case ADD_PLAYER -> new AddPlayerScreen();
         };
     }
 
@@ -415,7 +461,10 @@ public final class LobbyClient {
             Vec3 right = new Vec3(-Mth.cos(yawRad), 0.0D, -Mth.sin(yawRad));
             target = cameraPos.add(right.scale(nx * 2.6D)).add(0.0D, -ny * 1.6D, 0.0D);
         }
-        Vec3 dir = target.subtract(player.getEyePosition());
+        // Dari tempat karakter ini tampil (bisa digeser ke depan tengah, lihat renderOffset).
+        Vec3 offset = renderOffset(player);
+        Vec3 eye = offset == null ? player.getEyePosition() : player.getEyePosition().add(offset);
+        Vec3 dir = target.subtract(eye);
         float yaw = (float) (Mth.atan2(dir.z, dir.x) * Mth.RAD_TO_DEG) - 90.0F;
         yaw = body + Mth.clamp(Mth.wrapDegrees(yaw - body), -70.0F, 70.0F);
         float pitch = Mth.clamp((float) (-(Mth.atan2(dir.y, dir.horizontalDistance()) * Mth.RAD_TO_DEG)), -50.0F, 50.0F);
@@ -442,18 +491,37 @@ public final class LobbyClient {
         return null;
     }
 
+    /**
+     * Geseran gambar pemain ini di barisan room (dipakai {@code LobbyLevelRendererMixin}):
+     * setiap klien melihat karakternya sendiri di depan tengah (slot pertama),
+     * bertukar tempat dengan anggota yang ditaruh server di sana. {@code null} = tidak digeser.
+     */
+    public static Vec3 renderOffset(Entity entity) {
+        Minecraft client = Minecraft.getInstance();
+        if (!active || stage == null || room == null || client.player == null || !(entity instanceof Player)) return null;
+        // Urutan barisan sama dengan server: pemain dulu, host di ujung.
+        List<RoomInfo.Member> lineup = new java.util.ArrayList<>(room.players());
+        lineup.addAll(room.hosts());
+        int self = -1;
+        for (int i = 0; i < lineup.size(); i++) {
+            if (lineup.get(i).id().equals(client.player.getUUID())) self = i;
+        }
+        if (self <= 0) return null;
+        int count = lineup.size();
+        if (entity == client.player) return stage.slot(0, count).subtract(stage.slot(self, count));
+        if (lineup.get(0).id().equals(entity.getUUID())) return stage.slot(self, count).subtract(stage.slot(0, count));
+        return null;
+    }
+
     /** Pemain ini sedang tampil di set lobby (dirinya sendiri atau anggota room-nya). */
     public static boolean inLobbyScene(Player player) {
         return active && visibleInLobby(player);
     }
 
+    /** Yang tampil di set lobby: diri sendiri, dan anggota room ini (pemain maupun host). */
     private static boolean visibleInLobby(Player player) {
         if (player == Minecraft.getInstance().player) return true;
-        if (room == null) return false;
-        for (RoomInfo.Member member : room.members()) {
-            if (member.id().equals(player.getUUID())) return true;
-        }
-        return false;
+        return room != null && room.member(player.getUUID()) != null;
     }
 
     private static void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
@@ -501,9 +569,20 @@ public final class LobbyClient {
         }
     }
 
-    /** Tombol "Kembali ke Lobby" di menu pause selama di dalam Backrooms. */
+    /**
+     * Tombol "Kembali ke Lobby" di menu pause selama di dalam Backrooms. Selama
+     * kulit pemain dicuri Skinwalker, tombol ini (seperti tombol keluar) menjadi
+     * "There Is No Escape".
+     */
     private static void onScreenInit(ScreenEvent.Init.Post event) {
         if (event.getScreen() instanceof PauseScreen screen && !active && CameraEffect.isInBackrooms()) {
+            Minecraft client = Minecraft.getInstance();
+            if (client.player != null && com.backrooms.component.PlayerComponent.get(client.player).hasBeenCaptured()) {
+                event.addListener(Button.builder(Component.translatable("skinwalker.flavor-text.leave").withStyle(ChatFormatting.RED),
+                        button -> com.backrooms.client.skinwalker.SkinWalkerCapturedFlavorText.triedToLeave = true)
+                        .bounds(screen.width / 2 - 102, screen.height - 30, 204, 20).build());
+                return;
+            }
             event.addListener(Button.builder(Component.literal("Kembali ke lobby"), button -> {
                 send(LobbyActionC2S.Action.GO_LOBBY);
                 Minecraft.getInstance().setScreen(null);
@@ -556,6 +635,7 @@ public final class LobbyClient {
         stage = null;
         room = null;
         rooms = List.of();
+        candidates = List.of();
         page = Page.MAIN;
         noclipStart = -1L;
         cameraReady = false;

@@ -71,8 +71,13 @@ public final class Flashlight {
         ResourceKey<Level> dimension = player.level().dimension();
         if (!knownLevel(dimension)) return;
 
-        if (ModKeyBinds.TOGGLE_FLASHLIGHT.consumeClick()) {
+        com.backrooms.component.PlayerComponent component = com.backrooms.component.PlayerComponent.get(player);
+        if (ModKeyBinds.TOGGLE_FLASHLIGHT.consumeClick() && !component.hasBeenCaptured && !component.isBeingCaptured()) {
             press(player, !isOn(player));
+        } else if (component.hasBeenCaptured && component.isBeingCaptured() && isOn(player)) {
+            // Korban Skinwalker: senternya dimatikan.
+            setOn(player.getUUID(), false);
+            ModNetwork.CHANNEL.sendToServer(new FlashlightC2S(false));
         }
         if (!allowsTorch(player)) {
             if (isOn(player)) {

@@ -54,8 +54,8 @@ import java.util.function.BooleanSupplier;
  * </ul>
  *
  * Fitur dari level/entitas yang tidak ada di port ini (warp Level 2,
- * jumpscare skinwalker, glitch smiler) memakai nilai "diam" seperti
- * saat fitur itu tidak aktif di mod aslinya.
+ * glitch smiler) memakai nilai "diam" seperti saat fitur itu tidak aktif di
+ * mod aslinya. Jumpscare Skinwalker ikut berjalan seperti aslinya.
  */
 public final class CameraEffect {
 
@@ -115,6 +115,7 @@ public final class CameraEffect {
             if (event.getLevel().isClientSide()) com.backrooms.client.light.LightTicks.clearAll();
         });
         com.backrooms.client.lobby.LobbyClient.init();
+        com.backrooms.client.skinwalker.SkinWalkerClient.init();
         com.backrooms.client.lobby.AnimDev.init();
         ClientSelfTest.init();
         DevWorld.init();
@@ -143,6 +144,7 @@ public final class CameraEffect {
         PostProcessingManager postProcessingManager = VeilRenderSystem.renderer().getPostProcessingManager();
         if (stage == VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) {
             FLASHLIGHT_RENDERER.renderFlashlightForEveryPlayer(partialTicks);
+            com.backrooms.client.skinwalker.SkinWalkerClient.afterLevel(frustum);
             PostPipeline pipeline = postProcessingManager.getPipeline(VHS_POST);
             if (pipeline != null) {
                 if (shouldRenderCameraEffect()) {
@@ -170,10 +172,15 @@ public final class CameraEffect {
             ShaderProgram shaderProgram = context.getShader(POST_VHS);
             if (shaderProgram != null) {
                 shaderProgram.setInt("youCantEscape", youCantEscape ? 1 : 0);
-                shaderProgram.setInt("Jumpscare", 0);
-                shaderProgram.setInt("CreepyFace1", 0);
-                shaderProgram.setInt("CreepyFace2", 0);
-                shaderProgram.setVector("Rand", 0.0F, 0.0F);
+                com.backrooms.component.PlayerComponent playerComponent = com.backrooms.component.PlayerComponent.get(player);
+                if (playerComponent.isBeingCaptured()) {
+                    com.backrooms.client.skinwalker.SkinwalkerJumpscare.doJumpscare(shaderProgram, client, playerComponent);
+                } else {
+                    shaderProgram.setInt("Jumpscare", 0);
+                    shaderProgram.setInt("CreepyFace1", 0);
+                    shaderProgram.setInt("CreepyFace2", 0);
+                    shaderProgram.setVector("Rand", 0.0F, 0.0F);
+                }
                 if (PreviousUniforms.prevModelViewMat != null && PreviousUniforms.prevProjMat != null) {
                     shaderProgram.setMatrix("prevViewMat", PreviousUniforms.prevModelViewMat);
                     shaderProgram.setMatrix("prevProjMat", PreviousUniforms.prevProjMat);
@@ -192,7 +199,8 @@ public final class CameraEffect {
             if (shaderProgram != null) {
                 boolean level1 = isInLevel(BackroomsLevel.LEVEL1);
                 shaderProgram.setInt("FogToggle", level1 ? 1 : 0);
-                shaderProgram.setInt("blackScreen", !blackScreen && !player.isInWall() ? 0 : 1);
+                shaderProgram.setInt("blackScreen", !blackScreen && !player.isInWall()
+                        && !com.backrooms.component.PlayerComponent.get(player).isBeingReleased() ? 0 : 1);
                 shaderProgram.setInt("TogglePuddles", level1 ? 1 : 0);
                 shaderProgram.setVector("shadowColor", PoolroomsDayCycle.getLightColor());
             }

@@ -3,7 +3,10 @@ package com.backrooms.block.entity;
 import com.backrooms.block.Lights;
 import com.backrooms.block.ModBlocks;
 import com.backrooms.world.BackroomsLevel;
+import com.backrooms.world.events.LightState;
+import com.backrooms.world.events.WorldEventsManager;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -19,8 +22,10 @@ import net.minecraft.world.level.block.state.BlockState;
  *       bentuk ruangan.</li>
  *   <li>Panel yang bersebelahan (utara/barat) menyalin state tetangganya
  *       dengan {@code copy=true}, seperti aslinya.</li>
- *   <li>Event blackout/flicker aslinya tidak di-port, jadi lampu selalu
- *       kembali menyala.</li>
+ *   <li>Lampu mengikuti kondisi lampu level ({@code LightState}) salinan
+ *       level tempatnya: blackout, mati, berkedip, atau menyala, persis
+ *       seperti aslinya (termasuk {@code blackout=true} yang tidak pernah
+ *       dikembalikan). Di level tanpa lampu (Poolrooms, lobby) tidak diubah.</li>
  * </ul>
  */
 public class FluorescentLightBlockEntity extends BlockEntity {
@@ -31,6 +36,7 @@ public class FluorescentLightBlockEntity extends BlockEntity {
     public boolean playingSound;
     public boolean prevOn;
     public int ticks = 0;
+    public final int randInt = this.random.nextIntBetweenInclusive(1, 5);
     /** Lampu Veil di klien (lihat {@code com.backrooms.client.light.LightTicks}). */
     public Object clientLight;
 
@@ -53,7 +59,7 @@ public class FluorescentLightBlockEntity extends BlockEntity {
         ++this.ticks;
         this.currentState = state;
         if (!level.isClientSide) {
-            if (!serverTick(level, pos, state)) return;
+            if (!this.serverTick(level, pos, state)) return;
         } else {
             com.backrooms.client.light.LightTicks.fluorescent(level, pos, state, this);
         }
@@ -64,8 +70,8 @@ public class FluorescentLightBlockEntity extends BlockEntity {
         this.prevOn = now.hasProperty(Lights.ON) && now.getValue(Lights.ON);
     }
 
-    /** @return false kalau panel ini baru saja diganti ceiling tile. */
-    private static boolean serverTick(Level level, BlockPos pos, BlockState state) {
+    /** @return false kalau tick ini berhenti di sini (diganti ceiling tile, atau level tanpa lampu). */
+    private boolean serverTick(Level level, BlockPos pos, BlockState state) {
         if (BackroomsLevel.at(level, pos.getX()) == BackroomsLevel.LEVEL0
                 && level.getBlockState(pos.below()) != Blocks.AIR.defaultBlockState()) {
             level.setBlockAndUpdate(pos, ModBlocks.CEILING_TILE.get().defaultBlockState());
@@ -83,9 +89,23 @@ public class FluorescentLightBlockEntity extends BlockEntity {
                 level.setBlockAndUpdate(pos, ModBlocks.FLUORESCENT_LIGHT.get().defaultBlockState()
                         .setValue(Lights.COPY, false));
             }
-            BlockState current = level.getBlockState(pos);
-            if (current.is(ModBlocks.FLUORESCENT_LIGHT.get()) && !current.getValue(Lights.ON)) {
-                level.setBlockAndUpdate(pos, current.setValue(Lights.ON, true));
+            LightState lightState = WorldEventsManager.lightStateAt((ServerLevel) level, pos.getX());
+            if (lightState == null) {
+                return false;
+            }
+            if (lightState == LightState.BLACKOUT) {
+                level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.BLACKOUT, true));
+            }
+            if (lightState != LightState.ON && state.getValue(Lights.ON)) {
+                level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.ON, false));
+            }
+            if (lightState == LightState.FLICKER && !state.getValue(Lights.BLACKOUT)) {
+                if (this.ticks % this.randInt == 0) {
+                    boolean on = this.random.nextBoolean();
+                    level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.ON, on));
+                }
+            } else if (!state.getValue(Lights.ON) && lightState == LightState.ON) {
+                level.setBlockAndUpdate(pos, level.getBlockState(pos).setValue(Lights.ON, true));
             }
         }
         return true;

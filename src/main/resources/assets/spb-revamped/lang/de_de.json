@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Deine Taschenlampe wurde nass. ",
   "spb-revamped.flashlight.wet2": "Sie funktioniert jetzt nicht mehr",
   "intro.backrooms": "Die Backrooms",
-  "intro.credit": "Eine Mod von "
+  "intro.credit": "Eine Mod von ",
+  "death.attack.skin_walker": "%1$s wurde von einem Skin Walker getötet!",
+  "skinwalker.flavor-text.move1": "Du kannst nichts bewegen. ",
+  "skinwalker.flavor-text.move2": "Das ist nicht mehr dein Körper",
+  "skinwalker.flavor-text.inventory": "Das Inventar gehört nicht mehr dir",
+  "skinwalker.flavor-text.leave": "Es gibt kein Entkommen",
+  "skinwalker.flavor-text.chat": "Keiner kann dich schreien hören",
+  "skinwalker.flavor-text.taunt1": "Nur zu, versuch's ruhig",
+  "skinwalker.flavor-text.taunt2": "Versuche doch deine Freunde zu rufen (T)",
+  "skinwalker.flavor-text.taunt3": "Falls es dir noch nicht aufgefallen ist, dein Körper wurde gestohlen. ",
+  "skinwalker.flavor-text.taunt4": "Sei kein Spielverderber. Schreibe keine Direktnachrichten an andere Spieler"
 }

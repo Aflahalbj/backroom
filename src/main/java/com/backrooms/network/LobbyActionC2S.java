@@ -16,8 +16,20 @@ public record LobbyActionC2S(Action action, int value, String text) {
         JOIN_ROOM,
         LEAVE_ROOM,
         START,
-        /** {@code text} = UUID anggota yang dikeluarkan. */
+        /** Owner: {@code text} = UUID anggota yang dikeluarkan. */
         KICK,
+        /** Owner: {@code text} = UUID anggota, {@code value} = indeks {@link com.backrooms.lobby.RoomInfo.Role}. */
+        SET_ROLE,
+        /** Owner: {@code value} = jumlah pemain per tim (1 = solo, 2 = duo, ...). */
+        SET_TEAM_SIZE,
+        /** Owner: {@code text} = UUID pemain yang dipindah ke tim berikutnya. */
+        MOVE_TEAM,
+        /** Owner: {@code text} = UUID pemain di lobby yang dimasukkan langsung ke room. */
+        ADD_PLAYER,
+        /** Owner: masukkan semua pemain di lobby yang belum ikut room (sampai room penuh). */
+        ADD_ALL,
+        /** Owner: minta daftar pemain yang bisa ditambahkan ({@link LobbyPlayersS2C}). */
+        REQUEST_CANDIDATES,
         /** {@code value} = indeks {@link com.backrooms.world.BackroomsLevel}. */
         SET_BACKGROUND,
         /** {@code value} = indeks {@link com.backrooms.lobby.LobbyPose}. */

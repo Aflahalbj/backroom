@@ -24,7 +24,7 @@ import java.util.UUID;
  */
 public final class ModNetwork {
 
-    private static final String VERSION = "2";
+    private static final String VERSION = "4";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(BackroomsMod.MOD_ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -49,8 +49,23 @@ public final class ModNetwork {
                 RoomS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, RoomListS2C.class, RoomListS2C::encode, RoomListS2C::decode,
                 RoomListS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, LobbyPlayersS2C.class, LobbyPlayersS2C::encode, LobbyPlayersS2C::decode,
+                LobbyPlayersS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
         CHANNEL.registerMessage(id++, CutsceneS2C.class, CutsceneS2C::encode, CutsceneS2C::decode,
                 CutsceneS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        // Skinwalker: sinkronisasi komponen CCA dan paket C2S/S2C aslinya.
+        CHANNEL.registerMessage(id++, PlayerComponentS2C.class, PlayerComponentS2C::encode, PlayerComponentS2C::decode,
+                PlayerComponentS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, SkinWalkerComponentS2C.class, SkinWalkerComponentS2C::encode, SkinWalkerComponentS2C::decode,
+                SkinWalkerComponentS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, WorldEventsS2C.class, WorldEventsS2C::encode, WorldEventsS2C::decode,
+                WorldEventsS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, PersonalSoundS2C.class, PersonalSoundS2C::encode, PersonalSoundS2C::decode,
+                PersonalSoundS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, CapturedPlayerS2C.class, CapturedPlayerS2C::encode, CapturedPlayerS2C::decode,
+                CapturedPlayerS2C::handle, Optional.of(NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, SkinwalkerSyncC2S.class, SkinwalkerSyncC2S::encode, SkinwalkerSyncC2S::decode,
+                SkinwalkerSyncC2S::handle, Optional.of(NetworkDirection.PLAY_TO_SERVER));
         MinecraftForge.EVENT_BUS.register(ModNetwork.class);
     }
 
@@ -58,9 +73,18 @@ public final class ModNetwork {
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
 
-    static void setFlashlight(ServerPlayer player, boolean on) {
+    public static void setFlashlight(ServerPlayer player, boolean on) {
         FLASHLIGHTS.put(player.getUUID(), on);
         CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new FlashlightS2C(player.getUUID(), on));
+    }
+
+    /**
+     * {@code playerComponent.setFlashLightOn(false); playerComponent.sync()} di aslinya:
+     * senter pemain ini mati, juga di kliennya sendiri.
+     */
+    public static void turnOffFlashlight(ServerPlayer player) {
+        FLASHLIGHTS.put(player.getUUID(), false);
+        CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new FlashlightS2C(player.getUUID(), false, true));
     }
 
     @SubscribeEvent
@@ -68,6 +92,11 @@ public final class ModNetwork {
         if (event.getTarget() instanceof ServerPlayer target && event.getEntity() instanceof ServerPlayer tracker) {
             boolean on = FLASHLIGHTS.getOrDefault(target.getUUID(), false);
             CHANNEL.send(PacketDistributor.PLAYER.with(() -> tracker), new FlashlightS2C(target.getUUID(), on));
+            // CCA menyinkronkan komponen sebuah entity saat mulai terlihat.
+            CHANNEL.send(PacketDistributor.PLAYER.with(() -> tracker), PlayerComponentS2C.of(com.backrooms.component.PlayerComponent.get(target)));
+        }
+        if (event.getTarget() instanceof com.backrooms.entity.custom.SkinWalkerEntity skinWalker && event.getEntity() instanceof ServerPlayer tracker) {
+            CHANNEL.send(PacketDistributor.PLAYER.with(() -> tracker), SkinWalkerComponentS2C.of(skinWalker));
         }
     }
 

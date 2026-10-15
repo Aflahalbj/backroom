@@ -38,7 +38,7 @@ public class EmergencyAlarmSoundInstance extends AbstractTickableSoundInstance {
         Level world = this.entity.getLevel();
         if (world != null && BackroomsLevel.at(world, this.entity.getBlockPos().getX()) == BackroomsLevel.LEVEL0) {
             if (!this.entity.isRemoved() && this.entity.getBlockPos().closerToCenterThan(this.player.position(), 80.0D)
-                    && !CameraEffect.blackScreen) {
+                    && com.backrooms.client.skinwalker.ClientWorldEvents.lightState() != com.backrooms.world.events.LightState.BLACKOUT && !CameraEffect.blackScreen) {
                 this.pitch = 1.0F;
                 this.volume = 10.0F;
             } else {

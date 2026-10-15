@@ -7,6 +7,13 @@ import net.minecraftforge.fml.DistExecutor;
 import com.backrooms.block.ModBlocks;
 import com.backrooms.block.entity.ModBlockEntities;
 import com.backrooms.command.BackroomCommand;
+import com.backrooms.component.ComponentEvents;
+import com.backrooms.entity.ModEntities;
+import com.backrooms.entity.ik.model.GeckoLib.MowzieModelFactory;
+import com.backrooms.entity.ik.util.PrAnCommonClass;
+import com.backrooms.world.events.WorldEventsManager;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import software.bernie.geckolib.util.GeckoLibUtil;
 import com.backrooms.config.BackroomsConfig;
 import com.backrooms.item.ModItems;
 import com.backrooms.lobby.LobbyManager;
@@ -32,6 +39,8 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
  * plus efek kamera VHS dan senter aslinya (di atas Veil).
  * Pemain masuk ke lobby begitu join, lalu ke Backrooms lewat room
  * (lihat {@link LobbyManager}); {@code /backroom gotolevel0} dst. tetap ada.
+ * Skinwalker asli ikut di-port (entity, IK, event Level 0, voice chat;
+ * lihat {@link com.backrooms.entity.custom.SkinWalkerEntity}).
  */
 @Mod(BackroomsMod.MOD_ID)
 public class BackroomsMod {
@@ -45,12 +54,23 @@ public class BackroomsMod {
         ModItems.ITEMS.register(modBus);
         ModItems.TABS.register(modBus);
         ModBlockEntities.BLOCK_ENTITIES.register(modBus);
+        ModEntities.ENTITY_TYPES.register(modBus);
+        modBus.addListener(ModEntities::onAttributes);
+        modBus.addListener(ComponentEvents::onRegisterCapabilities);
+        // SPBRevamped.onInitialize menyalakan debug kaki IK (kotak biru) di lingkungan dev pengembang aslinya.
+        // Di sini dev = runClient untuk main/menguji, jadi dibiarkan mati; F3+J menyalakannya (sama seperti aslinya).
+        if (!FMLEnvironment.production) {
+            PrAnCommonClass.isDev = true;
+        }
+        GeckoLibUtil.addCustomBakedModelFactory("spb-revamped", new MowzieModelFactory());
+        PrAnCommonClass.init();
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BackroomsConfig.SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, com.backrooms.client.ClientConfig.SPEC);
         ModNetwork.register();
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> com.backrooms.client.CameraEffect::init);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(LobbyManager.class);
+        MinecraftForge.EVENT_BUS.register(ComponentEvents.class);
     }
 
     @SubscribeEvent
@@ -63,6 +83,7 @@ public class BackroomsMod {
         if (event.phase == TickEvent.Phase.END) {
             LevelBuilder.tick(event.getServer());
             LobbyManager.tick(event.getServer());
+            WorldEventsManager.tick(event.getServer());
             SelfTest.tick(event.getServer());
         }
     }
@@ -80,5 +101,6 @@ public class BackroomsMod {
     public void onServerStopping(ServerStoppingEvent event) {
         LevelBuilder.clear();
         LobbyManager.clear();
+        WorldEventsManager.clear();
     }
 }

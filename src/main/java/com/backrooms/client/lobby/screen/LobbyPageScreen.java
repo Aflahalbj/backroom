@@ -19,6 +19,8 @@ import org.lwjgl.glfw.GLFW;
 public abstract class LobbyPageScreen extends Screen {
 
     private int builtVersion;
+    /** Status OP saat tombol dibangun (tombol Buat room hanya untuk OP; bisa berubah lewat /op). */
+    private boolean builtCanCreate;
 
     protected LobbyPageScreen(String title) {
         super(Component.literal(title));
@@ -36,12 +38,13 @@ public abstract class LobbyPageScreen extends Screen {
     @Override
     protected final void init() {
         builtVersion = LobbyClient.version();
+        builtCanCreate = LobbyClient.canCreateRoom();
         build();
     }
 
     @Override
     public void tick() {
-        if (builtVersion != LobbyClient.version()) {
+        if (builtVersion != LobbyClient.version() || builtCanCreate != LobbyClient.canCreateRoom()) {
             rebuildWidgets();
         }
     }

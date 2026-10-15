@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Your flashlight got wet. ",
   "spb-revamped.flashlight.wet2": "It no longer works",
   "intro.backrooms": "The Backrooms",
-  "intro.credit": "A Mod By "
+  "intro.credit": "A Mod By ",
+  "death.attack.skin_walker": "%1$s was killed by a Skin Walker!",
+  "skinwalker.flavor-text.move1": "You can't move anything. ",
+  "skinwalker.flavor-text.move2": "This isn't your body anymore",
+  "skinwalker.flavor-text.inventory": "That isn't your inventory anymore",
+  "skinwalker.flavor-text.leave": "There Is No Escape",
+  "skinwalker.flavor-text.chat": "No one can hear you scream",
+  "skinwalker.flavor-text.taunt1": "Go ahead",
+  "skinwalker.flavor-text.taunt2": "Try to call out to your friends (T)",
+  "skinwalker.flavor-text.taunt3": "If it isn't already obvious your skin has been stolen. ",
+  "skinwalker.flavor-text.taunt4": "Don't be a jerk. Don't DM any of the other players"
 }

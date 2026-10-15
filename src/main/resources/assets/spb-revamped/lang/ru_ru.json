@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Твой фонарь промок. ",
   "spb-revamped.flashlight.wet2": "Больше он не работает.",
   "intro.backrooms": "Закулисье",
-  "intro.credit": "Мод от "
+  "intro.credit": "Мод от ",
+  "death.attack.skin_walker": "%1$s был убит Кожекрадом!",
+  "skinwalker.flavor-text.move1": "Ты не можешь двигаться. ",
+  "skinwalker.flavor-text.move2": "Это больше не твое тело.",
+  "skinwalker.flavor-text.inventory": "Это больше не твой инвентарь.",
+  "skinwalker.flavor-text.leave": "Отсюда нет выхода.",
+  "skinwalker.flavor-text.chat": "Никто не услышит твой крик.",
+  "skinwalker.flavor-text.taunt1": "Давай, попробуй.",
+  "skinwalker.flavor-text.taunt2": "Попробуй позвать друзей (T).",
+  "skinwalker.flavor-text.taunt3": "Если ты ещё не понял, твою кожу уже забрали. ",
+  "skinwalker.flavor-text.taunt4": "Не будь придурком. Не пиши другим игрокам в ЛС."
 }

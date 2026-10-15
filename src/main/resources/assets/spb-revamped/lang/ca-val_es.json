@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "La teva llanterna s’ha mullat.",
   "spb-revamped.flashlight.wet2": "Ja no funciona",
   "intro.backrooms": "Els Backrooms",
-  "intro.credit": "Un mod de "
+  "intro.credit": "Un mod de ",
+  "death.attack.skin_walker": "%1$s ha estat eliminat per un Skin Walker!",
+  "skinwalker.flavor-text.move1": "No pots moure res.",
+  "skinwalker.flavor-text.move2": "Ja no és el teu cos",
+  "skinwalker.flavor-text.inventory": "Aquest ja no és el teu inventari",
+  "skinwalker.flavor-text.leave": "No hi ha sortida",
+  "skinwalker.flavor-text.chat": "Ningú pot sentir els teus crits",
+  "skinwalker.flavor-text.taunt1": "Endavant",
+  "skinwalker.flavor-text.taunt2": "Prova de cridar als teus col·legues (T)",
+  "skinwalker.flavor-text.taunt3": "Per si no era obvi, ja t'han pres la pell.",
+  "skinwalker.flavor-text.taunt4": "No siguis dolent. No enviïs missatges als altres jugadors"
 }

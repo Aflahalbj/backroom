@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "手电筒进水了  ",
   "spb-revamped.flashlight.wet2": "它失效了",
   "intro.backrooms": "The Backrooms",
-  "intro.credit": "模组作者 "
+  "intro.credit": "模组作者 ",
+  "death.attack.skin_walker": "%1$s 被窃皮者杀害！",
+  "skinwalker.flavor-text.move1": "你无法移动  ",
+  "skinwalker.flavor-text.move2": "这不再是你的身体了",
+  "skinwalker.flavor-text.inventory": "物品栏已不属于你",
+  "skinwalker.flavor-text.leave": "无处可逃",
+  "skinwalker.flavor-text.chat": "没人能听到你的尖叫",
+  "skinwalker.flavor-text.taunt1": "继续啊",
+  "skinwalker.flavor-text.taunt2": "试试呼唤你的朋友（按T）",
+  "skinwalker.flavor-text.taunt3": "如果还不够明显的话——你的皮肤已经被偷走了",
+  "skinwalker.flavor-text.taunt4": "别犯傻，不要偷偷告诉其他玩家"
 }

@@ -14,6 +14,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -23,6 +24,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -35,8 +37,8 @@ import java.util.UUID;
  * berjajar di sana, jadi ganti latar hanya berpindah tempat di dimensi yang
  * sama tanpa layar "Loading terrain" (lihat {@link BuildArea#lobby}). Pemain
  * berdiri diam di "panggung" set itu (lihat {@link StageFinder}) dengan
- * kamera tetap di depannya; anggota satu room berdiri berjajar di latar
- * pilihan host. Selama di lobby pemain kebal dan tidak bisa bergerak --
+ * kamera tetap di depannya; pemain satu room berdiri berjajar di latar
+ * pilihan owner (pemain dulu, host di ujung barisan). Selama di lobby pemain kebal dan tidak bisa bergerak --
  * layar lobby di klien menahan semua input.
  *
  * <p>Saat Backrooms room selesai dibangun, setiap anggota menjalani
@@ -51,6 +53,8 @@ public final class LobbyManager {
     /** Disimpan +1 supaya pemain baru (tag belum ada = 0) mendapat pose bawaan (Auto). */
     private static final String POSE_KEY = "backrooms:lobby_pose_v2";
     private static final String WEAPON_KEY = "backrooms:lobby_weapon";
+    /** Mode permainan host sebelum dijadikan penonton; dikembalikan begitu dia kembali ke lobby. */
+    private static final String HOST_MODE_KEY = "backrooms:host_prev_mode";
     /** Lama animasi tenggelam di klien sebelum pemain dipindahkan. */
     private static final int NOCLIP_TICKS = 60;
     /** Titik mendarat noclip, koordinat asli Level 0 ({@code checkBackroomsTeleport} di mod aslinya). */
@@ -65,6 +69,7 @@ public final class LobbyManager {
     // ------------------------------------------------------- server hidup
 
     public static void onServerStarted(MinecraftServer server) {
+        RoomManager.removeStaleTeams(server);
         for (BackroomsLevel which : BackroomsLevel.values()) {
             BuildArea area = BuildArea.lobby(which);
             LevelBuilder.build(server, area, () -> {
@@ -165,6 +170,7 @@ public final class LobbyManager {
         IN_LOBBY.add(player.getUUID());
         player.setInvulnerable(true);
         player.fallDistance = 0;
+        restoreMode(player);
         place(player, true);
         sendState(player);
         ModNetwork.send(player, new RoomS2C(RoomManager.info(player)));
@@ -193,7 +199,7 @@ public final class LobbyManager {
         sendState(player);
     }
 
-    /** Latar yang sedang dilihat pemain ini: milik room (pilihan host) kalau ikut room. */
+    /** Latar yang sedang dilihat pemain ini: milik room (pilihan owner) kalau ikut room. */
     private static BackroomsLevel shownBackground(ServerPlayer player) {
         RoomManager.Room room = RoomManager.roomOf(player);
         return room != null ? room.background : background(player);
@@ -206,13 +212,20 @@ public final class LobbyManager {
         ServerLevel level = player.getServer().getLevel(BuildArea.lobby(which).dimension());
         if (stage == null || level == null) return;
         RoomManager.Room room = RoomManager.roomOf(player);
-        int index = room == null ? 0 : Math.max(0, room.members.indexOf(player.getUUID()));
-        int count = room == null ? 1 : room.members.size();
-        Vec3 target = stage.slot(index, count);
+        // Barisan: pemain dulu, host di ujung (host tetap tampil dengan posenya).
+        List<UUID> lineup = room == null ? List.of() : lineup(room);
+        int index = Math.max(0, lineup.indexOf(player.getUUID()));
+        Vec3 target = stage.slot(index, Math.max(1, lineup.size()));
         if (force || player.level() != level || player.position().distanceToSqr(target) > 0.09D) {
             player.fallDistance = 0;
             player.teleportTo(level, target.x, target.y, target.z, stage.playerYaw(), 0.0F);
         }
+    }
+
+    private static List<UUID> lineup(RoomManager.Room room) {
+        List<UUID> lineup = new java.util.ArrayList<>(room.players());
+        lineup.addAll(room.hostList());
+        return lineup;
     }
 
     private static void sendState(ServerPlayer player) {
@@ -246,8 +259,24 @@ public final class LobbyManager {
         exit(player);
         Vec3 target = area.toWorld(NOCLIP_TARGET);
         player.fallDistance = 0;
+        if (RoomManager.isHost(player)) {
+            // Host tidak ikut main: masuk sebagai penonton, tanpa intro.
+            CompoundTag data = persisted(player);
+            if (!data.contains(HOST_MODE_KEY)) data.putInt(HOST_MODE_KEY, player.gameMode.getGameModeForPlayer().getId());
+            player.setGameMode(GameType.SPECTATOR);
+            player.teleportTo(level, target.x, target.y, target.z, player.getYRot(), player.getXRot());
+            return;
+        }
         player.teleportTo(level, target.x, target.y, target.z, player.getYRot(), player.getXRot());
         ModNetwork.send(player, new CutsceneS2C(CutsceneS2C.Type.INTRO, area.offsetX(), area.offsetZ()));
+    }
+
+    /** Host yang kembali ke lobby (atau login lagi) mendapat mode permainannya yang semula. */
+    private static void restoreMode(ServerPlayer player) {
+        CompoundTag data = persisted(player);
+        if (!data.contains(HOST_MODE_KEY)) return;
+        player.setGameMode(GameType.byId(data.getInt(HOST_MODE_KEY)));
+        data.remove(HOST_MODE_KEY);
     }
 
     // ------------------------------------------------------------ aksi
@@ -271,28 +300,61 @@ public final class LobbyManager {
                 if (lobby) RoomManager.start(player);
             }
             case KICK -> {
-                try {
-                    if (lobby) RoomManager.kick(player, UUID.fromString(msg.text()));
-                } catch (IllegalArgumentException ignored) {
-                    // UUID rusak dari klien: abaikan.
+                UUID target = uuid(msg.text());
+                if (lobby && target != null) RoomManager.kick(player, target);
+            }
+            case SET_ROLE -> {
+                UUID target = uuid(msg.text());
+                RoomInfo.Role[] roles = RoomInfo.Role.values();
+                if (lobby && target != null && msg.value() >= 0 && msg.value() < roles.length) {
+                    RoomManager.setRole(player, target, roles[msg.value()]);
                 }
+            }
+            case SET_TEAM_SIZE -> {
+                if (lobby) RoomManager.setTeamSize(player, msg.value());
+            }
+            case MOVE_TEAM -> {
+                UUID target = uuid(msg.text());
+                if (lobby && target != null) RoomManager.moveTeam(player, target);
+            }
+            case ADD_PLAYER -> {
+                UUID target = uuid(msg.text());
+                if (lobby && target != null) RoomManager.add(player, target);
+            }
+            case ADD_ALL -> {
+                if (lobby) RoomManager.addAll(player);
+            }
+            case REQUEST_CANDIDATES -> {
+                if (lobby) RoomManager.sendCandidates(player);
             }
             case SET_BACKGROUND -> setBackground(player, msg.value());
             case SET_POSE -> setPose(player, msg.value());
             case SET_WEAPON -> setWeapon(player, msg.value());
             case GO_LOBBY -> {
-                if (!inLobby(player)) goToLobby(player);
+                // Korban Skinwalker tidak bisa kabur ("There Is No Escape").
+                if (!inLobby(player) && !com.backrooms.component.PlayerComponent.get(player).hasBeenCaptured()) goToLobby(player);
             }
             case REQUEST_LIST -> RoomManager.sendList(player);
+        }
+    }
+
+    /** UUID dari klien; {@code null} kalau rusak. */
+    private static UUID uuid(String text) {
+        try {
+            return UUID.fromString(text);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 
     private static void setBackground(ServerPlayer player, int index) {
         BackroomsLevel[] levels = BackroomsLevel.values();
         if (index < 0 || index >= levels.length) return;
-        persisted(player).putInt(BACKGROUND_KEY, index);
         RoomManager.Room room = RoomManager.roomOf(player);
-        if (room != null && room.host.equals(player.getUUID()) && room.state == RoomState.WAITING) {
+        // Di dalam room hanya owner yang memilih latar.
+        if (room != null && !room.owner.equals(player.getUUID())) return;
+        persisted(player).putInt(BACKGROUND_KEY, index);
+        if (room != null && room.owner.equals(player.getUUID()) && room.state == RoomState.WAITING) {
             room.background = levels[index];
             for (UUID id : room.members) {
                 ServerPlayer member = player.getServer().getPlayerList().getPlayer(id);

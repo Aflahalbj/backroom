@@ -78,6 +78,7 @@ public final class ClientSetup {
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.FLUORESCENT_LIGHT.get(), FluorescentLightRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.THIN_FLUORESCENT_LIGHT.get(), ThinFluorescentLightRenderer::new);
+        event.registerEntityRenderer(com.backrooms.entity.ModEntities.SKIN_WALKER.get(), com.backrooms.client.skinwalker.SkinWalkerRenderer::new);
     }
 
     @SubscribeEvent

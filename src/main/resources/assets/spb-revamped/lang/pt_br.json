@@ -53,5 +53,15 @@
   "spb-revamped.flashlight.wet1": "Sua lanterna molhou. ",
   "spb-revamped.flashlight.wet2": "Ela não funciona mais.",
   "intro.backrooms": "As Backrooms",
-  "intro.credit": "Um mod feito por "
+  "intro.credit": "Um mod feito por ",
+  "death.attack.skin_walker": "%1$s foi morto por um Skin Walker!",
+  "skinwalker.flavor-text.move1": "Você não consegue mover nada. ",
+  "skinwalker.flavor-text.move2": "Esse não é mais o seu corpo.",
+  "skinwalker.flavor-text.inventory": "Aquele não é mais seu inventário.",
+  "skinwalker.flavor-text.leave": "Não Há Escapatória",
+  "skinwalker.flavor-text.chat": "Ninguém pode te ouvir gritar",
+  "skinwalker.flavor-text.taunt1": "Vá em frente",
+  "skinwalker.flavor-text.taunt2": "Tente chamar os seus amigos (T)",
+  "skinwalker.flavor-text.taunt3": "Se não já é óbvio o bastante, sua pele foi roubada. ",
+  "skinwalker.flavor-text.taunt4": "Não seja chato. Não mande mensagens pros outros jogadores"
 }

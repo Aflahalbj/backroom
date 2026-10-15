@@ -11,11 +11,11 @@ public final class ClientPackets {
 
     private ClientPackets() {}
 
-    public static void flashlight(UUID player, boolean on) {
+    public static void flashlight(UUID player, boolean on, boolean force) {
         Minecraft client = Minecraft.getInstance();
         // Status pemain ini sendiri dipegang klien (seperti aslinya); hanya
-        // pemain lain yang diambil dari server.
-        if (client.player != null && client.player.getUUID().equals(player)) return;
+        // pemain lain yang diambil dari server -- kecuali server memaksanya mati.
+        if (!force && client.player != null && client.player.getUUID().equals(player)) return;
         Flashlight.setOn(player, on);
     }
 

@@ -28,7 +28,8 @@ import static net.minecraft.commands.Commands.literal;
  *
  * <p>Efek kamera dan senter (pengaturan klien pemain yang menjalankannya):
  * {@code /backroom camera on|off}, {@code /backroom camera backrooms on|off},
- * {@code /backroom camera luar on|off}, {@code /backroom flashlight [on|off]}.
+ * {@code /backroom camera luar on|off}, {@code /backroom flashlight [on|off]},
+ * {@code /backroom skinwalker <pemain>}, {@code /backroom release <pemain>} (op).
  *
  * <p>Tidak butuh izin op: ini cara utama masuk ke backrooms.
  */
@@ -101,6 +102,9 @@ public final class BackroomCommand {
         flashlight.executes(ctx -> send(ctx.getSource().getPlayerOrException(), ClientActionS2C.Action.FLASHLIGHT_TOGGLE, true));
         onOff(flashlight, ClientActionS2C.Action.FLASHLIGHT);
         root.then(flashlight);
+
+        // Skinwalker: /backroom skinwalker <pemain>, /backroom release <pemain> (op).
+        SkinwalkerCommand.register(root);
 
         dispatcher.register(root);
     }

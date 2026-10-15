@@ -4,6 +4,7 @@ import com.backrooms.block.Lights;
 import com.backrooms.block.entity.ThinFluorescentLightBlockEntity;
 import com.backrooms.client.CameraEffect;
 import com.backrooms.sound.ModSounds;
+import com.backrooms.world.BackroomsLevel;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.sounds.SoundSource;
@@ -33,8 +34,12 @@ public class ThinFluorescentLightSoundInstance extends AbstractTickableSoundInst
     @Override
     public void tick() {
         if (this.entity.getLevel() == null) return;
+        // Level 0 dan Level 1: lampu dianggap padam selama blackout level.
+        BackroomsLevel level = BackroomsLevel.at(this.entity.getLevel(), this.entity.getBlockPos().getX());
+        boolean blackedOut = (level == BackroomsLevel.LEVEL0 || level == BackroomsLevel.LEVEL1)
+                && com.backrooms.client.skinwalker.ClientWorldEvents.lightState() == com.backrooms.world.events.LightState.BLACKOUT;
         if (!this.entity.isRemoved() && this.entity.getBlockPos().closerToCenterThan(this.player.position(), 15.0D)
-                && this.entity.currentState.getValue(Lights.ON) && !this.entity.currentState.getValue(Lights.BLACKOUT)
+                && !blackedOut && this.entity.currentState.getValue(Lights.ON) && !this.entity.currentState.getValue(Lights.BLACKOUT)
                 && !CameraEffect.blackScreen) {
             this.pitch = 1.0F;
             this.volume = 0.2F;
