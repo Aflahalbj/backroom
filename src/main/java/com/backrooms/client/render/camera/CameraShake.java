@@ -26,7 +26,9 @@ public class CameraShake {
     private float cameraZRot = 0.0F;
 
     public void tick(Camera camera) {
-        if (ClientConfig.enableRealCamera() && !com.backrooms.client.lobby.IntroCutscene.isPlaying()) {
+        // Cutscene perkenalan punya goyangan genggamnya sendiri (yang ini ikut gerak pemain dan melonjak saat frame lambat).
+        if (ClientConfig.enableRealCamera() && !com.backrooms.client.lobby.IntroCutscene.isPlaying()
+                && !com.backrooms.client.lobby.DropCutscene.ownsCamera()) {
             float frameDelta = Minecraft.getInstance().getDeltaFrameTime();
             if (this.noiseY >= 1000.0D) {
                 this.noiseY = 0.0D;

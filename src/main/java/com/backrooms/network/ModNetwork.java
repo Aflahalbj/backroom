@@ -24,7 +24,7 @@ import java.util.UUID;
  */
 public final class ModNetwork {
 
-    private static final String VERSION = "4";
+    private static final String VERSION = "5";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(BackroomsMod.MOD_ID, "main"), () -> VERSION, VERSION::equals, VERSION::equals);
 
@@ -76,6 +76,11 @@ public final class ModNetwork {
     public static void setFlashlight(ServerPlayer player, boolean on) {
         FLASHLIGHTS.put(player.getUUID(), on);
         CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player), new FlashlightS2C(player.getUUID(), on));
+    }
+
+    /** {@code playerComponent.isFlashLightOn()} di server. */
+    public static boolean isFlashlightOn(ServerPlayer player) {
+        return FLASHLIGHTS.getOrDefault(player.getUUID(), false);
     }
 
     /**

@@ -33,7 +33,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  *
  * <ul>
  *   <li>roll kamera (menoleh + bergeser + guncangan) sebelum efek "hurt",
- *       atau rotasi {@code cameraRotZ} selama intro Level 0;</li>
+ *       atau rotasi {@code cameraRotZ} selama intro Level 0 (dan roll
+ *       kamera cutscene perkenalan room);</li>
  *   <li>pitch/yaw kamera dihaluskan (orang pertama);</li>
  *   <li>view bobbing diganti versi asli (lebih kuat, x10 dengan real camera);</li>
  *   <li>shader blok/entity diganti shader shadow map selama shadow pass;</li>
@@ -73,6 +74,11 @@ public abstract class GameRendererMixin {
     private void backrooms$cameraRoll(float tickDelta, long limitTime, PoseStack matrices, CallbackInfo ci) {
         // Kamera lobby menatap karakter, bukan pandangan pemain: tanpa kotak blok yang dibidik.
         this.setRenderBlockOutline(!LobbyClient.overridesCamera());
+        if (com.backrooms.client.lobby.DropCutscene.ownsCamera()) {
+            // Cutscene perkenalan: kamera dimiringkan/dibalik (mis. pose terbalik ala Spider-Verse).
+            matrices.mulPose(Axis.ZP.rotationDegrees(com.backrooms.client.lobby.DropCutscene.roll()));
+            return;
+        }
         if (CameraEffect.shouldRenderCameraEffect()) {
             Player player = this.minecraft.player;
             if (player != null) {
@@ -91,7 +97,8 @@ public abstract class GameRendererMixin {
         if (!CameraEffect.shouldRenderCameraEffect()) {
             return deg;
         }
-        if (this.minecraft.player != null && ClientConfig.enableSmoothCamera() && this.minecraft.options.getCameraType() == CameraType.FIRST_PERSON) {
+        if (this.minecraft.player != null && ClientConfig.enableSmoothCamera() && this.minecraft.options.getCameraType() == CameraType.FIRST_PERSON
+                && !LobbyClient.overridesCamera()) {
             this.backrooms$smoothYaw = MathStuff.Lerp(this.backrooms$smoothYaw, deg, ClientConfig.cameraSmoothing(), this.minecraft.getDeltaFrameTime());
             return this.backrooms$smoothYaw;
         }
@@ -104,7 +111,8 @@ public abstract class GameRendererMixin {
         if (!CameraEffect.shouldRenderCameraEffect()) {
             return deg;
         }
-        if (this.minecraft.player != null && ClientConfig.enableSmoothCamera() && this.minecraft.options.getCameraType() == CameraType.FIRST_PERSON) {
+        if (this.minecraft.player != null && ClientConfig.enableSmoothCamera() && this.minecraft.options.getCameraType() == CameraType.FIRST_PERSON
+                && !LobbyClient.overridesCamera()) {
             this.backrooms$smoothPitch = MathStuff.Lerp(this.backrooms$smoothPitch, deg, ClientConfig.cameraSmoothing(), this.minecraft.getDeltaFrameTime());
             return this.backrooms$smoothPitch;
         }

@@ -42,9 +42,10 @@ import java.util.UUID;
  * layar lobby di klien menahan semua input.
  *
  * <p>Saat Backrooms room selesai dibangun, setiap anggota menjalani
- * {@link #noclip}: karakternya tenggelam menembus lantai (di klien), lalu
- * server memindahkannya ke titik noclip aslinya di Level 0 room itu dan
- * klien memutar intro asli.
+ * {@link #noclip}: cutscene perkenalan di klien (lantai bolong, semua jatuh
+ * dan diperkenalkan satu per satu, lihat {@link DropTiming}), lalu server
+ * memindahkannya ke titik noclip aslinya di Level 0 room itu dan klien
+ * memutar intro asli.
  */
 public final class LobbyManager {
 
@@ -55,8 +56,6 @@ public final class LobbyManager {
     private static final String WEAPON_KEY = "backrooms:lobby_weapon";
     /** Mode permainan host sebelum dijadikan penonton; dikembalikan begitu dia kembali ke lobby. */
     private static final String HOST_MODE_KEY = "backrooms:host_prev_mode";
-    /** Lama animasi tenggelam di klien sebelum pemain dipindahkan. */
-    private static final int NOCLIP_TICKS = 60;
     /** Titik mendarat noclip, koordinat asli Level 0 ({@code checkBackroomsTeleport} di mod aslinya). */
     private static final Vec3 NOCLIP_TARGET = new Vec3(1.5D, 22.0D, 1.5D);
 
@@ -222,7 +221,7 @@ public final class LobbyManager {
         }
     }
 
-    private static List<UUID> lineup(RoomManager.Room room) {
+    static List<UUID> lineup(RoomManager.Room room) {
         List<UUID> lineup = new java.util.ArrayList<>(room.players());
         lineup.addAll(room.hostList());
         return lineup;
@@ -238,14 +237,32 @@ public final class LobbyManager {
 
     // ------------------------------------------------------------ noclip
 
-    /** Mulai masuk ke Backrooms room: karakter tenggelam di lobby, lalu {@link #land}. */
-    static void noclip(ServerPlayer player) {
+    /**
+     * Mulai masuk ke Backrooms room: cutscene perkenalan {@code lineup} (urutan
+     * perkenalan, semuanya anggota room yang ikut jatuh bersama) di lobby, lalu {@link #land}.
+     */
+    static void noclip(ServerPlayer player, List<UUID> lineup) {
         if (!inLobby(player)) {
             land(player);
             return;
         }
-        NOCLIP.put(player.getUUID(), NOCLIP_TICKS);
-        ModNetwork.send(player, new CutsceneS2C(CutsceneS2C.Type.NOCLIP, 0, 0));
+        NOCLIP.put(player.getUUID(), DropTiming.serverTicks(lineup.size()));
+        ModNetwork.send(player, new CutsceneS2C(CutsceneS2C.Type.DROP, 0, 0, lineup));
+    }
+
+    /**
+     * Uji: putar cutscene perkenalan untuk {@code player} saja, tanpa ditahan
+     * dan tanpa pindah ke Backrooms. Barisannya room si pemain (kalau ada),
+     * kalau tidak hanya dia sendiri. {@code false} kalau tidak di lobby atau
+     * panggung latarnya belum siap.
+     */
+    public static boolean previewDrop(ServerPlayer player) {
+        if (!inLobby(player) || STAGES.get(shownBackground(player)) == null) return false;
+        RoomManager.Room room = RoomManager.roomOf(player);
+        List<UUID> lineup = room != null ? lineup(room) : new java.util.ArrayList<>();
+        if (!lineup.contains(player.getUUID())) lineup.add(0, player.getUUID());
+        ModNetwork.send(player, new CutsceneS2C(CutsceneS2C.Type.DROP, 0, 0, lineup));
+        return true;
     }
 
     private static void land(ServerPlayer player) {

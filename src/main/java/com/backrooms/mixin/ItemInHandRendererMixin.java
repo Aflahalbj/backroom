@@ -44,9 +44,12 @@ public abstract class ItemInHandRendererMixin {
     @Inject(method = "renderItem", at = @At("HEAD"))
     private void backrooms$lobbyMuzzleFlash(LivingEntity entity, ItemStack stack, ItemDisplayContext context, boolean leftHand,
                                             PoseStack poseStack, MultiBufferSource buffers, int light, CallbackInfo ci) {
-        if (context == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND && entity instanceof Player player
-                && LobbyClient.inLobbyScene(player)) {
-            LobbyFx.renderAtHand(player, poseStack, buffers);
+        if (entity instanceof Player player && LobbyClient.inLobbyScene(player)) {
+            if (context == ItemDisplayContext.THIRD_PERSON_RIGHT_HAND) {
+                LobbyFx.renderAtHand(player, poseStack, buffers, false);
+            } else if (context == ItemDisplayContext.THIRD_PERSON_LEFT_HAND) {
+                LobbyFx.renderAtHand(player, poseStack, buffers, true);
+            }
         }
     }
 }

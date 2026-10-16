@@ -29,7 +29,6 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.ReceivingLevelScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundSource;
@@ -40,7 +39,9 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.RenderHandEvent;
+import net.minecraftforge.client.event.RenderNameTagEvent;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -53,20 +54,18 @@ import java.util.UUID;
 /**
  * Sisi klien lobby: keadaan dari server, layar mana yang terbuka, kamera
  * tetap di depan karakter, karakter yang menoleh ke kursor, dan cutscene
- * noclip + intro.
+ * perkenalan + intro.
  *
  * <p>Selama di lobby atau cutscene selalu ada layar yang terbuka, jadi semua
  * input gerak tertahan. Layar vanilla yang dibuka dari lobby (menu pause,
  * chat) dibiarkan; begitu ditutup, layar lobby dibuka lagi.
+ *
+ * <p>Saat room mulai, cutscene perkenalan ({@link DropCutscene}) memegang
+ * kamera dan gambar anggota room sampai server memindahkan pemain.
  */
 public final class LobbyClient {
 
     public enum Page { MAIN, JOIN, CUSTOMIZE, ROOM, ADD_PLAYER }
-
-    /** Lama animasi noclip di klien (server memindahkan pemain setelah 60 tick). */
-    private static final long NOCLIP_SINK_START = 450L;
-    private static final long NOCLIP_SINK_END = 2600L;
-    private static final double NOCLIP_DEPTH = 2.4D;
 
     // ------------------------------------------------- keadaan dari server
     private static boolean active;
@@ -92,7 +91,6 @@ public final class LobbyClient {
     private static int revealWait;
     private static int revealReady;
     private static float dragYaw;
-    private static long noclipStart = -1L;
 
     // ------------------------------------------------------------ kamera
     private static boolean cameraReady;
@@ -108,7 +106,9 @@ public final class LobbyClient {
     private static int playlistIndex;
     /** Tick sejak suara lobby terakhir dimulai (supaya tidak diulang tiap tick kalau gagal diputar). */
     private static int musicAge;
-    private static boolean pushedSink;
+    private static boolean pushedDrop;
+    /** Arah kepala asli pemain yang sedang digambar selama cutscene (dikembalikan sesudahnya). */
+    private static final float[] SAVED_HEAD = new float[4];
 
     private LobbyClient() {}
 
@@ -123,6 +123,10 @@ public final class LobbyClient {
         MinecraftForge.EVENT_BUS.addListener(LobbyClient::onScreenInit);
         MinecraftForge.EVENT_BUS.addListener(LobbyClient::onPlaySound);
         MinecraftForge.EVENT_BUS.addListener(LobbyClient::onLoggingOut);
+        MinecraftForge.EVENT_BUS.addListener(LobbyClient::onComputeFov);
+        MinecraftForge.EVENT_BUS.addListener(LobbyClient::onFogColor);
+        MinecraftForge.EVENT_BUS.addListener(LobbyClient::onNameTag);
+        MinecraftForge.EVENT_BUS.addListener(DropScenery::onRenderStage);
     }
 
     // ============================================================ paket
@@ -149,7 +153,7 @@ public final class LobbyClient {
             enteredAt = System.currentTimeMillis();
             page = room != null ? Page.ROOM : Page.MAIN;
             dragYaw = 0.0F;
-            noclipStart = -1L;
+            DropCutscene.stop();
             IntroCutscene.cancel();
         }
         version++;
@@ -182,17 +186,13 @@ public final class LobbyClient {
 
     public static void onCutscene(CutsceneS2C msg) {
         switch (msg.type()) {
-            case NOCLIP -> {
-                noclipStart = System.currentTimeMillis();
-                // Aslinya suara glitch diputar saat mulai tercekik di dalam dinding.
-                if (ModSounds.available("glitch")) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(ModSounds.event("glitch"), 1.0F));
+            case DROP -> {
+                if (stage != null) {
+                    if (!cameraReady) updateCamera();
+                    DropCutscene.start(msg.members(), stage, cameraPos, cameraYaw, cameraPitch);
                 }
             }
-            case INTRO -> {
-                noclipStart = -1L;
-                IntroCutscene.start(msg.offsetX(), msg.offsetZ());
-            }
+            case INTRO -> IntroCutscene.start(msg.offsetX(), msg.offsetZ());
         }
         version++;
     }
@@ -291,21 +291,26 @@ public final class LobbyClient {
         dragYaw = Mth.wrapDegrees(dragYaw - (float) dx * 1.5F);
     }
 
-    /** Noclip atau intro sedang berjalan: input ditahan oleh {@link CutsceneScreen}. */
+    /** Cutscene perkenalan atau intro sedang berjalan: input ditahan oleh {@link CutsceneScreen}. */
     public static boolean cutsceneActive() {
-        return noclipStart >= 0L || IntroCutscene.isRunning();
+        return DropCutscene.isRunning() || IntroCutscene.isRunning();
     }
 
-    /** Kemajuan noclip 0..1 (sebelum/ sesudah tenggelam), atau -1 kalau tidak sedang noclip. */
-    public static float noclipProgress() {
-        if (noclipStart < 0L) return -1.0F;
-        long t = System.currentTimeMillis() - noclipStart;
-        return Mth.clamp((float) (t - NOCLIP_SINK_START) / (float) (NOCLIP_SINK_END - NOCLIP_SINK_START), 0.0F, 1.0F);
-    }
-
-    /** Milidetik sejak noclip dimulai, atau -1. */
-    public static long noclipTime() {
-        return noclipStart < 0L ? -1L : System.currentTimeMillis() - noclipStart;
+    /**
+     * Pratinjau (AnimDev/uji): cutscene perkenalan room ini tanpa server; pemain
+     * tidak dipindahkan sesudahnya, jadi cutscene berakhir sendiri dan lantai dikembalikan.
+     */
+    public static void previewDrop() {
+        Minecraft client = Minecraft.getInstance();
+        if (stage == null || client.player == null) return;
+        List<UUID> lineup = new java.util.ArrayList<>();
+        if (room != null) {
+            room.players().forEach(m -> lineup.add(m.id()));
+            room.hosts().forEach(m -> lineup.add(m.id()));
+        }
+        if (!lineup.contains(client.player.getUUID())) lineup.add(0, client.player.getUUID());
+        if (!cameraReady) updateCamera();
+        DropCutscene.start(lineup, stage, cameraPos, cameraYaw, cameraPitch);
     }
 
     // ========================================================== layar
@@ -360,6 +365,7 @@ public final class LobbyClient {
         }
         tickMusic(client);
         tickReveal(client);
+        DropCutscene.clientTick();
         LobbyAnimator.tick(client);
     }
 
@@ -379,6 +385,7 @@ public final class LobbyClient {
 
     private static void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase != TickEvent.Phase.START) return;
+        DropCutscene.frame();
         IntroCutscene.tick();
         Minecraft client = Minecraft.getInstance();
         if (active && stage != null && client.player != null) {
@@ -389,6 +396,7 @@ public final class LobbyClient {
 
     /** Dipanggil {@code CameraMixin} setelah kamera vanilla disiapkan. */
     public static boolean applyCamera(Camera camera) {
+        if (DropCutscene.applyCamera(camera)) return true;
         if (IntroCutscene.applyCamera(camera)) return true;
         if (!active || stage == null || !cameraReady) return false;
         CameraAccessor accessor = (CameraAccessor) camera;
@@ -400,7 +408,7 @@ public final class LobbyClient {
 
     /** Kamera dikendalikan lobby atau cutscene (bukan pemain). */
     public static boolean overridesCamera() {
-        return active && stage != null || IntroCutscene.isPlaying();
+        return active && stage != null || DropCutscene.ownsCamera() || IntroCutscene.isPlaying();
     }
 
     private static int memberCount() {
@@ -419,15 +427,6 @@ public final class LobbyClient {
         Vec3 shift = screenRight.scale(effectivePage() == Page.CUSTOMIZE ? distance * 0.3D : 0.0D);
         target = target.add(shift);
         aim = aim.add(shift);
-
-        float noclip = noclipProgress();
-        if (noclip > 0.0F) {
-            // Kamera pelan-pelan mendekat dan menunduk mengikuti karakter yang tenggelam.
-            float t = noclip * noclip * (3.0F - 2.0F * noclip);
-            Vec3 close = feet.add(facing.scale(Math.max(1.8D, distance - 1.5D))).add(0.0D, 1.4D, 0.0D);
-            target = target.lerp(close, t);
-            aim = aim.lerp(feet.add(0.0D, 0.2D, 0.0D), t);
-        }
 
         Vec3 dir = aim.subtract(target);
         float yaw = (float) (Mth.atan2(dir.z, dir.x) * Mth.RAD_TO_DEG) - 90.0F;
@@ -452,8 +451,21 @@ public final class LobbyClient {
     /** Karakter menghadap kamera, kepalanya mengikuti kursor; badannya bisa diputar dengan diseret. */
     private static void lookAtCursor(Minecraft client, LocalPlayer player) {
         float body = stage.playerYaw() + dragYaw;
+        if (DropCutscene.isRunning()) {
+            // Selama cutscene arah badan/kepala diatur animasi dan cutscene, bukan kursor.
+            body = stage.playerYaw();
+            player.setYRot(body);
+            player.yRotO = body;
+            player.setYHeadRot(body);
+            player.yHeadRotO = body;
+            player.setXRot(0.0F);
+            player.xRotO = 0.0F;
+            player.yBodyRot = body;
+            player.yBodyRotO = body;
+            return;
+        }
         Vec3 target = cameraPos;
-        if (noclipStart < 0L && client.screen instanceof LobbyPageScreen) {
+        if (client.screen instanceof LobbyPageScreen) {
             Window window = client.getWindow();
             double nx = client.mouseHandler.xpos() / Math.max(1, window.getScreenWidth()) * 2.0D - 1.0D;
             double ny = client.mouseHandler.ypos() / Math.max(1, window.getScreenHeight()) * 2.0D - 1.0D;
@@ -462,7 +474,7 @@ public final class LobbyClient {
             target = cameraPos.add(right.scale(nx * 2.6D)).add(0.0D, -ny * 1.6D, 0.0D);
         }
         // Dari tempat karakter ini tampil (bisa digeser ke depan tengah, lihat renderOffset).
-        Vec3 offset = renderOffset(player);
+        Vec3 offset = lobbyOffset(player);
         Vec3 eye = offset == null ? player.getEyePosition() : player.getEyePosition().add(offset);
         Vec3 dir = target.subtract(eye);
         float yaw = (float) (Mth.atan2(dir.z, dir.x) * Mth.RAD_TO_DEG) - 90.0F;
@@ -492,11 +504,21 @@ public final class LobbyClient {
     }
 
     /**
-     * Geseran gambar pemain ini di barisan room (dipakai {@code LobbyLevelRendererMixin}):
-     * setiap klien melihat karakternya sendiri di depan tengah (slot pertama),
-     * bertukar tempat dengan anggota yang ditaruh server di sana. {@code null} = tidak digeser.
+     * Geseran gambar pemain ini (dipakai {@code LobbyLevelRendererMixin}):
+     * selama cutscene perkenalan ke posisinya di udara, selain itu
+     * {@link #lobbyOffset}. {@code null} = tidak digeser.
      */
-    public static Vec3 renderOffset(Entity entity) {
+    public static Vec3 renderOffset(Entity entity, float partialTick) {
+        if (DropCutscene.isRunning()) return DropCutscene.renderOffset(entity, partialTick);
+        return lobbyOffset(entity);
+    }
+
+    /**
+     * Geseran gambar pemain ini di barisan room: setiap klien melihat
+     * karakternya sendiri di depan tengah (slot pertama), bertukar tempat
+     * dengan anggota yang ditaruh server di sana. {@code null} = tidak digeser.
+     */
+    public static Vec3 lobbyOffset(Entity entity) {
         Minecraft client = Minecraft.getInstance();
         if (!active || stage == null || room == null || client.player == null || !(entity instanceof Player)) return null;
         // Urutan barisan sama dengan server: pemain dulu, host di ujung.
@@ -525,26 +547,65 @@ public final class LobbyClient {
     }
 
     private static void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
-        pushedSink = false;
+        pushedDrop = false;
         if (!active) return;
-        if (!visibleInLobby(event.getEntity())) {
+        Player player = event.getEntity();
+        if (!visibleInLobby(player)) {
             // Pemain lain di set lobby yang sama tapi bukan anggota room ini.
             event.setCanceled(true);
             return;
         }
-        float noclip = noclipProgress();
-        if (noclip > 0.0F) {
+        if (DropCutscene.hiddenInCutscene(player)) {
+            event.setCanceled(true);
+            return;
+        }
+        float yaw = DropCutscene.bodyYaw(player);
+        if (!Float.isNaN(yaw)) {
+            // Putar seluruh badan ke arah hadapnya di formasi; kepala lurus mengikuti badan (diatur animasi).
+            float body = Mth.rotLerp(event.getPartialTick(), player.yBodyRotO, player.yBodyRot);
             event.getPoseStack().pushPose();
-            event.getPoseStack().translate(0.0D, -NOCLIP_DEPTH * noclip * noclip, 0.0D);
-            pushedSink = true;
+            event.getPoseStack().mulPose(com.mojang.math.Axis.YP.rotationDegrees(body - yaw));
+            SAVED_HEAD[0] = player.yHeadRot;
+            SAVED_HEAD[1] = player.yHeadRotO;
+            SAVED_HEAD[2] = player.getXRot();
+            SAVED_HEAD[3] = player.xRotO;
+            player.yHeadRot = player.yBodyRot;
+            player.yHeadRotO = player.yBodyRotO;
+            player.setXRot(0.0F);
+            player.xRotO = 0.0F;
+            pushedDrop = true;
         }
     }
 
     private static void onRenderPlayerPost(RenderPlayerEvent.Post event) {
-        if (pushedSink) {
+        if (pushedDrop) {
             event.getPoseStack().popPose();
-            pushedSink = false;
+            Player player = event.getEntity();
+            player.yHeadRot = SAVED_HEAD[0];
+            player.yHeadRotO = SAVED_HEAD[1];
+            player.setXRot(SAVED_HEAD[2]);
+            player.xRotO = SAVED_HEAD[3];
+            pushedDrop = false;
         }
+    }
+
+    /** FOV kamera cutscene (dolly zoom, sentakan saat menyambar). */
+    private static void onComputeFov(ViewportEvent.ComputeFov event) {
+        if (DropCutscene.ownsCamera()) event.setFOV(DropCutscene.fov());
+    }
+
+    /** Sejak lantai runtuh: latar gelap netral (langit lobby biru tua, langit/kabut Poolrooms putih). */
+    private static void onFogColor(ViewportEvent.ComputeFogColor event) {
+        if (DropCutscene.darkVoid()) {
+            event.setRed(0.02F);
+            event.setGreen(0.018F);
+            event.setBlue(0.016F);
+        }
+    }
+
+    /** Selama cutscene nama di atas kepala disembunyikan (diganti kartu nama). */
+    private static void onNameTag(RenderNameTagEvent event) {
+        if (DropCutscene.isMember(event.getEntity())) event.setResult(net.minecraftforge.eventbus.api.Event.Result.DENY);
     }
 
     private static void onRenderHand(RenderHandEvent event) {
@@ -637,7 +698,7 @@ public final class LobbyClient {
         rooms = List.of();
         candidates = List.of();
         page = Page.MAIN;
-        noclipStart = -1L;
+        DropCutscene.stop();
         cameraReady = false;
         music = null;
         musicId = null;

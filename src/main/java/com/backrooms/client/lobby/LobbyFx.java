@@ -80,11 +80,18 @@ public final class LobbyFx {
         float flashRoll;
         float flashScale = 1.0F;
         Vec3 muzzleWorld;
+        /** Arah laras dan sisi kanan senjata di dunia (untuk peluru dan selongsong cutscene). */
+        Vec3 barrel = new Vec3(0.0D, 0.0D, 1.0D);
+        Vec3 side = new Vec3(1.0D, 0.0D, 0.0D);
         PointLight light;
         int lightTicks;
     }
 
     private static final Map<UUID, State> STATES = new HashMap<>();
+    /** Pistol tangan kiri (gerakan akimbo di cutscene perkenalan). */
+    private static final Map<UUID, State> LEFT = new HashMap<>();
+    /** Pistol akimbo: letak moncong di ruang tangan dan suaranya. */
+    private static final Vec3 PISTOL_MUZZLE = new Vec3(0.0D, 0.1D, -0.32D);
     private static boolean markers;
     private static boolean holdFlash;
     private static Method playClientSound;
@@ -96,7 +103,12 @@ public final class LobbyFx {
 
     /** Satu tembakan: api di frame berikutnya, kilatan cahaya, suara. */
     static void fire(Player player) {
-        State s = STATES.computeIfAbsent(player.getUUID(), id -> new State());
+        fire(player, false);
+    }
+
+    /** Satu tembakan senjata kanan atau pistol kiri ({@code left}). */
+    static void fire(Player player, boolean left) {
+        State s = (left ? LEFT : STATES).computeIfAbsent(player.getUUID(), id -> new State());
         s.flashUntil = System.currentTimeMillis() + FLASH_MILLIS;
         s.flashRoll = RANDOM.nextFloat() * 360.0F;
         s.flashScale = 0.85F + RANDOM.nextFloat() * 0.35F;
@@ -109,8 +121,17 @@ public final class LobbyFx {
             LightTicks.addLight(s.light);
         }
         s.lightTicks = 2;
-        String sound = LobbyClient.weaponOf(player).shootSound();
+        String sound = left ? DropCutscene.PISTOL_SOUND : LobbyClient.weaponOf(player).shootSound();
         if (sound != null) playTaczSound(player, sound, 0.45F);
+        DropCutscene.onShot(player, left);
+        if (s.muzzleWorld != null && DropCutscene.isMember(player)) {
+            DropFx.shot(s.muzzleWorld, s.barrel, s.side, left ? null : LobbyClient.weaponOf(player));
+        }
+    }
+
+    /** Suara TACZ apa saja (mis. kokang shotgun, bolt) dari karakter ini. */
+    static void taczSound(Player player, String sound, float volume) {
+        if (sound != null) playTaczSound(player, sound, volume);
     }
 
     /** Suara satu tahap reload ({@code magout}, {@code magin}, {@code end}). */
@@ -132,8 +153,20 @@ public final class LobbyFx {
             }
         }
         if (playClientSound == null) return;
+        if (DropCutscene.ownsCamera()) {
+            // Badan asli anggota masih di lobby, jauh dari kamera cutscene di jurang (di luar
+            // jangkauan dengar): suaranya diputar dari penanda di posisi kamera.
+            net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
+            if (client.level == null) return;
+            Entity at = new net.minecraft.world.entity.Marker(net.minecraft.world.entity.EntityType.MARKER, client.level);
+            net.minecraft.world.phys.Vec3 cam = client.gameRenderer.getMainCamera().getPosition();
+            at.setPos(cam.x, cam.y, cam.z);
+            entity = at;
+        }
         try {
-            playClientSound.invoke(null, entity, new ResourceLocation(sound), volume, 0.95F + RANDOM.nextFloat() * 0.1F, 48);
+            // Gerak lambat: suara ikut melambat dan berat.
+            float pitch = (0.95F + RANDOM.nextFloat() * 0.1F) * (0.55F + 0.45F * DropCutscene.animSpeed());
+            playClientSound.invoke(null, entity, new ResourceLocation(sound), volume, pitch, 48);
         } catch (ReflectiveOperationException | RuntimeException e) {
             LOGGER.debug("Suara {} gagal diputar", sound, e);
         }
@@ -141,7 +174,12 @@ public final class LobbyFx {
 
     /** Tiap tick klien: padamkan kilatan cahaya yang sudah lewat. */
     static void tick() {
-        for (State s : STATES.values()) {
+        tickLights(STATES);
+        tickLights(LEFT);
+    }
+
+    private static void tickLights(Map<UUID, State> states) {
+        for (State s : states.values()) {
             if (s.light != null && --s.lightTicks <= 0) {
                 LightTicks.removeLight(s.light);
                 s.light = null;
@@ -174,22 +212,24 @@ public final class LobbyFx {
      * posisi moncong di dunia (untuk kilatan cahaya) dan gambar api kalau
      * sedang menembak.
      */
-    public static void renderAtHand(Player player, PoseStack poseStack, MultiBufferSource buffers) {
+    public static void renderAtHand(Player player, PoseStack poseStack, MultiBufferSource buffers, boolean left) {
         LobbyWeapon weapon = LobbyClient.weaponOf(player);
-        if (weapon.gunId() == null) return;
-        Vec3 muzzle = MUZZLE.get(weapon);
-        State s = STATES.computeIfAbsent(player.getUUID(), id -> new State());
+        if (left ? DropCutscene.offhandGun(player) == null : weapon.gunId() == null) return;
+        Vec3 muzzle = left ? PISTOL_MUZZLE : MUZZLE.get(weapon);
+        State s = (left ? LEFT : STATES).computeIfAbsent(player.getUUID(), id -> new State());
 
         poseStack.pushPose();
         poseStack.translate(muzzle.x, muzzle.y, muzzle.z);
         Matrix4f pose = poseStack.last().pose();
         s.muzzleWorld = toWorld(pose, 0, 0, 0);
+        s.barrel = toWorld(pose, 0, 0, -1).subtract(s.muzzleWorld).normalize();
+        s.side = toWorld(pose, 1, 0, 0).subtract(s.muzzleWorld).normalize();
         if (s.light != null) s.light.setPosition(new Vector3d(s.muzzleWorld.x, s.muzzleWorld.y, s.muzzleWorld.z));
 
         if (markers) drawMarkers(poseStack, buffers);
-        long left = s.flashUntil - System.currentTimeMillis();
-        if (left > 0 || holdFlash) {
-            drawFlash(poseStack, buffers, s, FLASH_SCALE.get(weapon), holdFlash ? 1.0F : (float) left / FLASH_MILLIS);
+        long remaining = s.flashUntil - System.currentTimeMillis();
+        if (remaining > 0 || holdFlash) {
+            drawFlash(poseStack, buffers, s, left ? 0.7F : FLASH_SCALE.get(weapon), holdFlash ? 1.0F : (float) remaining / FLASH_MILLIS);
         }
         poseStack.popPose();
     }
@@ -288,5 +328,7 @@ public final class LobbyFx {
     static void forget(UUID player) {
         State s = STATES.remove(player);
         if (s != null && s.light != null) LightTicks.removeLight(s.light);
+        State l = LEFT.remove(player);
+        if (l != null && l.light != null) LightTicks.removeLight(l.light);
     }
 }

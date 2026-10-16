@@ -39,12 +39,18 @@ import net.minecraft.world.level.GameType;
  * dunia" berarti pemain di salinan yang sama, dan lampu/Skinwalker satu room
  * tidak mengganggu room lain.
  *
- * <p>Event yang di-port hanya milik Level 0 (blackout, flicker, intercom,
- * musik) -- intercom-nya yang memicu Skinwalker. Level 1 dan Poolrooms memakai
- * {@link EmptyEvent} seperti level tanpa event.
+ * <p>Event per level sama dengan aslinya: Level 0 (blackout, flicker, intercom,
+ * musik), Level 1 (blackout + Smiler, flicker, ambience), Poolrooms (sunset,
+ * ambience). Status level ikut di sini: lampu Level 0/1, waktu Poolrooms.
+ *
+ * <p>Tambahan port ini (tidak ada di mod asli): Skinwalker juga bisa muncul sendiri
+ * di Level 1 dan Poolrooms, setelah {@link #SKINWALKER_EVENTS} event di level itu
+ * (di Level 0 tetap syarat aslinya, 2 intercom), sekali per level per room.
  */
 public class WorldEvents {
     private static final UUID nullUUID = UUID.randomUUID();
+    /** Event yang harus sudah terjadi di Level 1/Poolrooms sebelum Skinwalker bisa muncul (kira-kira rata-rata Level 0). */
+    public static final int SKINWALKER_EVENTS = 4;
 
     private final ServerLevel world;
     private final int slot;
@@ -64,6 +70,13 @@ public class WorldEvents {
     private int blackoutCount = 0;
     private int intercomCount = 0;
     private LightState lightState = LightState.ON;
+    // PoolroomsBackroomsLevel
+    private float timeOfDay = 0.0F;
+    private boolean sunsetTransitioning = false;
+    /** Tambahan: Poolrooms jadi malam selama momen lampu mati Skinwalker. */
+    private boolean skinwalkerNight = false;
+    /** Tambahan: jumlah event yang sudah terjadi di salinan level ini (pemicu Skinwalker Level 1/Poolrooms). */
+    private int eventCount = 0;
 
     WorldEvents(ServerLevel world, int slot) {
         this.world = world;
@@ -78,6 +91,13 @@ public class WorldEvents {
             this.events.put("flicker", LightLevelFlicker::new);
             this.events.put("intercom", Level0IntercomBasic::new);
             this.events.put("music", Level0Music::new);
+        } else if (this.which == BackroomsLevel.LEVEL1) {
+            this.events.put("blackout", com.backrooms.world.events.level1.Level1Blackout::new);
+            this.events.put("flicker", LightLevelFlicker::new);
+            this.events.put("ambience", com.backrooms.world.events.level1.Level1Ambience::new);
+        } else if (this.which == BackroomsLevel.POOLROOMS) {
+            this.events.put("sunset", com.backrooms.world.events.poolrooms.PoolroomsSunset::new);
+            this.events.put("abience", com.backrooms.world.events.poolrooms.PoolroomsAmbience::new);
         }
     }
 
@@ -170,21 +190,18 @@ public class WorldEvents {
                 }
             } else {
                 // Aslinya hanya di Level 0 (korban /skinwalker di level lain tidak pernah dilepas);
-                // di sini korban dilepas di level mana pun, lampu tetap hanya diubah di Level 0.
-                boolean level0 = this.which == BackroomsLevel.LEVEL0;
+                // di sini korban dilepas di level mana pun (lampu/langit lewat skinwalkerLights).
                 ServerPlayer target = (ServerPlayer) this.getActiveSkinwalkerTarget();
                 // Di aslinya ini NullPointerException (server crash) kalau korban keluar
                 // dari game saat dilepas; di sini urutan lepasnya tetap jalan tanpa korban.
                 PlayerComponent targetComponent = target != null ? PlayerComponent.get(target) : new PlayerComponent(null);
                 ++this.tick;
-                if (this.tick == 1 && level0) {
-                    this.setLightState(LightState.FLICKER);
+                if (this.tick == 1) {
+                    this.skinwalkerLights(LightState.FLICKER);
                 }
 
                 if (this.tick == 80) {
-                    if (level0) {
-                        this.setLightState(LightState.OFF);
-                    }
+                    this.skinwalkerLights(LightState.OFF);
                     targetComponent.setBeingReleased(true);
                     targetComponent.sync();
                     if (target != null) {
@@ -201,9 +218,7 @@ public class WorldEvents {
                 }
 
                 if (this.tick >= 105) {
-                    if (level0) {
-                        this.setLightState(LightState.ON);
-                    }
+                    this.skinwalkerLights(LightState.ON);
                     targetComponent.setBeingReleased(false);
                     targetComponent.setHasBeenCaptured(false);
                     targetComponent.setShouldBeMuted(false);
@@ -250,8 +265,11 @@ public class WorldEvents {
     }
 
     private void tickSkinWalkerCapturing() {
-        if (this.which == BackroomsLevel.LEVEL0) {
-            if (this.getIntercomCount() >= 2 && this.players().size() > 1) {
+        // Aslinya hanya Level 0 (2 intercom); Level 1/Poolrooms tambahan port ini.
+        boolean ready = this.which == BackroomsLevel.LEVEL0 ? this.getIntercomCount() >= 2
+                : (this.which == BackroomsLevel.LEVEL1 || this.which == BackroomsLevel.POOLROOMS) && this.eventCount >= SKINWALKER_EVENTS;
+        if (ready) {
+            if (this.players().size() > 1) {
                 if (!this.done) {
                     if (this.activeSkinWalkerEntity == null) {
                         // Pemain yang paling sedikit bicara (lewat Simple Voice Chat) -- di antara
@@ -324,6 +342,9 @@ public class WorldEvents {
                 this.delay = 0;
                 this.activeEvent = this.getRandomEvent();
                 this.activeEvent.init(this);
+                if (!(this.activeEvent instanceof EmptyEvent)) {
+                    ++this.eventCount;
+                }
                 this.ticks = 0;
                 this.delay = this.nextEventDelay();
             }
@@ -384,6 +405,66 @@ public class WorldEvents {
         WorldEventsManager.setDirty(this.world);
     }
 
+    /**
+     * {@code EventCommand.setEvent} asli ({@code /backroomsevent}): event aktif diselesaikan,
+     * event baru langsung dimulai. Di port ini ikut dihitung untuk pemicu Skinwalker.
+     */
+    public void startEvent(AbstractEvent event) {
+        if (this.activeEvent != null) {
+            this.activeEvent.finish(this);
+        }
+        this.activeEvent = event;
+        event.init(this);
+        ++this.eventCount;
+        this.ticks = 0;
+    }
+
+    /**
+     * Efek lampu saat Skinwalker berubah wujud/melepas korban. Level 0 seperti aslinya;
+     * tambahan port ini: Level 1 padam sementara (BLACKOUT, karena lampu neon tipis tidak
+     * punya keadaan OFF), Poolrooms jadi malam selama lampu mati.
+     */
+    public void skinwalkerLights(LightState state) {
+        if (this.which == BackroomsLevel.LEVEL0) {
+            this.setLightState(state);
+        } else if (this.which == BackroomsLevel.LEVEL1) {
+            this.setLightState(state == LightState.OFF ? LightState.BLACKOUT : state);
+        } else if (this.which == BackroomsLevel.POOLROOMS && state != LightState.FLICKER) {
+            this.justChanged();
+            this.skinwalkerNight = state == LightState.OFF;
+        }
+    }
+
+    // ---- PoolroomsBackroomsLevel
+
+    /** {@code PoolroomsBackroomsLevel.isNoon}: bukan senja (0.25) dan bukan fajar (0.75). */
+    public boolean isNoon() {
+        return (double) this.timeOfDay != 0.25D && (double) this.timeOfDay != 0.75D;
+    }
+
+    /** Air Poolrooms asam: senja/fajar (aslinya), atau malam karena Skinwalker (tambahan). */
+    public boolean isWaterAcidic() {
+        return this.which == BackroomsLevel.POOLROOMS && (!this.isNoon() || this.skinwalkerNight);
+    }
+
+    public float getTimeOfDay() {
+        return this.timeOfDay;
+    }
+
+    public void setTimeOfDay(float timeOfDay) {
+        this.justChanged();
+        this.timeOfDay = timeOfDay;
+    }
+
+    public boolean isSunsetTransitioning() {
+        return this.sunsetTransitioning;
+    }
+
+    public void setSunsetTransitioning(boolean sunsetTransitioning) {
+        this.justChanged();
+        this.sunsetTransitioning = sunsetTransitioning;
+    }
+
     /** Level 0 dan Level 1 adalah {@code BackroomsLevelWithLights} di aslinya. */
     public boolean hasLights() {
         return this.which == BackroomsLevel.LEVEL0 || this.which == BackroomsLevel.LEVEL1;
@@ -416,11 +497,19 @@ public class WorldEvents {
         nbt.putInt("blackoutCount", this.blackoutCount);
         nbt.putInt("intercomCount", this.intercomCount);
         nbt.putString("lightState", this.lightState.name());
+        nbt.putFloat("timeOfDay", this.timeOfDay);
+        nbt.putBoolean("sunsetTransitioning", this.sunsetTransitioning);
+        nbt.putBoolean("skinwalkerNight", this.skinwalkerNight);
+        nbt.putInt("eventCount", this.eventCount);
     }
 
     private void readLevelNbt(CompoundTag nbt) {
         this.blackoutCount = nbt.getInt("blackoutCount");
         this.intercomCount = nbt.getInt("intercomCount");
-        this.lightState = LightState.valueOf(nbt.getString("lightState"));
+        this.lightState = nbt.contains("lightState") ? LightState.valueOf(nbt.getString("lightState")) : LightState.ON;
+        this.timeOfDay = nbt.getFloat("timeOfDay");
+        this.sunsetTransitioning = nbt.getBoolean("sunsetTransitioning");
+        this.skinwalkerNight = nbt.getBoolean("skinwalkerNight");
+        this.eventCount = nbt.getInt("eventCount");
     }
 }

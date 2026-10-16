@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Go ahead",
   "skinwalker.flavor-text.taunt2": "Try to call out to your friends (T)",
   "skinwalker.flavor-text.taunt3": "If it isn't already obvious your skin has been stolen. ",
-  "skinwalker.flavor-text.taunt4": "Don't be a jerk. Don't DM any of the other players"
+  "skinwalker.flavor-text.taunt4": "Don't be a jerk. Don't DM any of the other players",
+  "death.attack.acid": "%1$s burned in Acid!",
+  "death.attack.smiler": "%1$s was killed by a Smiler!"
 }

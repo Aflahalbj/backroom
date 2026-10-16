@@ -49,6 +49,13 @@ public class PlayerComponent {
     private int talkingTooLoudTimer;
     private GameType prevGameMode;
     private boolean canSeeActiveSkinWalker;
+    // ---- glitch Smiler
+    public float glitchTimer;
+    private boolean shouldGlitch;
+    public int glitchTick;
+    public boolean shouldInflictGlitchDamage;
+    /** {@code PlayerComponent.GlitchAmbience} (klien). */
+    public Object glitchAmbience;
 
     public PlayerComponent(Player player) {
         this.player = player;
@@ -179,6 +186,22 @@ public class PlayerComponent {
         this.canSeeActiveSkinWalker = canSeeActiveSkinWalker;
     }
 
+    public float getGlitchTimer() {
+        return this.glitchTimer;
+    }
+
+    public boolean shouldGlitch() {
+        return this.shouldGlitch;
+    }
+
+    public void setShouldGlitch(boolean shouldGlitch) {
+        this.shouldGlitch = shouldGlitch;
+    }
+
+    public void setShouldInflictGlitchDamage(boolean shouldInflictGlitchDamage) {
+        this.shouldInflictGlitchDamage = shouldInflictGlitchDamage;
+    }
+
     public void readFromNbt(CompoundTag tag) {
         this.isBeingCaptured = tag.getBoolean("isBeingCaptured");
         this.hasBeenCaptured = tag.getBoolean("hasBeenCaptured");
@@ -206,8 +229,12 @@ public class PlayerComponent {
         return new com.backrooms.network.CapturedPlayerS2C(this.player.getUUID(), this.hasBeenCaptured || this.isBeingCaptured);
     }
 
-    /** Bagian Skinwalker dari {@code PlayerComponent.serverTick}. */
+    /** Bagian Skinwalker dan Smiler dari {@code PlayerComponent.serverTick}. */
     public void serverTick() {
+        if (this.shouldInflictGlitchDamage) {
+            this.player.hurt(com.backrooms.entity.ModDamageTypes.of(this.player.level(), com.backrooms.entity.ModDamageTypes.SMILER), 1.0F);
+        }
+
         Float speakingTime = BackroomsVoicechatPlugin.speakingTime.get(this.player.getUUID());
         if (speakingTime != null && speakingTime == this.prevSpeakingTime) {
             if (this.isSpeaking()) {

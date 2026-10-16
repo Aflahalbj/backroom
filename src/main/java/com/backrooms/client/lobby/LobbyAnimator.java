@@ -7,6 +7,7 @@ import dev.kosmx.playerAnim.api.layered.IAnimation;
 import dev.kosmx.playerAnim.api.layered.KeyframeAnimationPlayer;
 import dev.kosmx.playerAnim.api.layered.ModifierLayer;
 import dev.kosmx.playerAnim.api.layered.modifier.AbstractFadeModifier;
+import dev.kosmx.playerAnim.api.layered.modifier.SpeedModifier;
 import dev.kosmx.playerAnim.core.data.KeyframeAnimation;
 import dev.kosmx.playerAnim.core.util.Ease;
 import dev.kosmx.playerAnim.minecraftApi.PlayerAnimationAccess;
@@ -27,6 +28,9 @@ import java.util.WeakHashMap;
  * Memutar animasi pose lobby (Player Animator) pada karakter yang tampil di
  * set lobby: pemain sendiri dan anggota room-nya. Pergantian pose dibaurkan
  * supaya karakter tidak "melompat" ke pose baru.
+ *
+ * <p>Selama cutscene perkenalan ({@link DropCutscene}) animasi jatuhnya
+ * menggantikan pose lobby, dan semua lapisan ikut melambat saat bullet time.
  */
 final class LobbyAnimator {
 
@@ -34,6 +38,8 @@ final class LobbyAnimator {
     /** Di atas lapisan animasi mod lain (mis. pose senjata TACZ). */
     private static final int PRIORITY = 3000;
     private static final int FADE_TICKS = 8;
+    /** Pergantian aksi di cutscene harus cepat (kamera sudah menunggu). */
+    private static final int DROP_FADE_TICKS = 3;
 
     /** Kejadian di dalam animasi: tembakan ({@code shot}) atau tahap reload. */
     private record Event(int tick, String kind) {}
@@ -47,8 +53,11 @@ final class LobbyAnimator {
          */
         final WeakReference<AbstractClientPlayer> owner;
         final ModifierLayer<IAnimation> layer = new ModifierLayer<>();
+        final SpeedModifier speed = new SpeedModifier(1.0F);
         /** Pose yang dipilih (bisa {@link LobbyPose#AUTO}). */
         LobbyPose current;
+        /** Animasi cutscene yang sedang diputar, atau {@code null}. */
+        String drop;
         KeyframeAnimationPlayer player;
         List<Event> events = List.of();
         int lastTick = -1;
@@ -58,10 +67,13 @@ final class LobbyAnimator {
 
         Entry(AbstractClientPlayer owner) {
             this.owner = new WeakReference<>(owner);
+            this.layer.addModifierLast(speed);
         }
     }
 
     private static final Map<AbstractClientPlayer, Entry> ENTRIES = new WeakHashMap<>();
+    /** Pratinjau AnimDev: animasi yang dipaksakan ke pemain sendiri, atau {@code null}. */
+    private static String forced;
 
     private LobbyAnimator() {}
 
@@ -70,16 +82,33 @@ final class LobbyAnimator {
         for (Player player : client.level.players()) {
             if (!(player instanceof AbstractClientPlayer clientPlayer)) continue;
             LobbyPose wanted = LobbyClient.inLobbyScene(player) ? LobbyClient.poseOf(player) : null;
+            String drop = DropCutscene.animation(player);
+            if (forced != null && player == client.player && drop == null) drop = forced;
             Entry entry = ENTRIES.get(clientPlayer);
             if (entry != null && entry.owner.get() != clientPlayer) {
                 ENTRIES.remove(clientPlayer);
                 entry = null;
             }
             if (entry == null) {
-                if (wanted == null) continue;
+                if (wanted == null && drop == null) continue;
                 entry = new Entry(clientPlayer);
                 PlayerAnimationAccess.getPlayerAnimLayer(clientPlayer).addAnimLayer(PRIORITY, entry.layer);
                 ENTRIES.put(clientPlayer, entry);
+            }
+            entry.speed.speed = DropCutscene.animSpeed(player);
+            if (drop != null) {
+                if (!drop.equals(entry.drop)) {
+                    entry.drop = drop;
+                    play(entry, drop, DropCutscene.animationTick(player), DROP_FADE_TICKS);
+                } else {
+                    fireEvents(player, entry);
+                }
+                continue;
+            }
+            if (entry.drop != null) {
+                // Cutscene selesai: mulai lagi pose lobby (kalau masih di lobby).
+                entry.drop = null;
+                entry.current = null;
             }
             if (wanted != entry.current) {
                 entry.current = wanted;
@@ -98,16 +127,21 @@ final class LobbyAnimator {
     }
 
     private static void play(Entry entry, LobbyPose pose) {
-        KeyframeAnimation animation = pose == null ? null
-                : PlayerAnimationRegistry.getAnimation(new ResourceLocation(BackroomsMod.MOD_ID, pose.animation()));
-        if (pose != null && animation == null) {
-            LOGGER.warn("Animasi lobby {} tidak ditemukan.", pose.animation());
+        play(entry, pose == null ? null : pose.animation(), 0, FADE_TICKS);
+    }
+
+    /** Putar animasi {@code name} mulai tick {@code startTick} (untuk menyusul), dibaurkan selama {@code fade} tick. */
+    private static void play(Entry entry, String name, int startTick, int fade) {
+        KeyframeAnimation animation = name == null ? null
+                : PlayerAnimationRegistry.getAnimation(new ResourceLocation(BackroomsMod.MOD_ID, name));
+        if (name != null && animation == null) {
+            LOGGER.warn("Animasi lobby {} tidak ditemukan.", name);
         }
-        entry.player = animation == null ? null : new KeyframeAnimationPlayer(animation);
+        entry.player = animation == null ? null : new KeyframeAnimationPlayer(animation, startTick);
         entry.events = animation == null ? List.of() : events(animation);
         entry.lastTick = -1;
         entry.autoTicksLeft = animation == null ? 20 : animation.endTick;
-        entry.layer.replaceAnimationWithFade(AbstractFadeModifier.standardFadeIn(FADE_TICKS, Ease.INOUTSINE), entry.player);
+        entry.layer.replaceAnimationWithFade(AbstractFadeModifier.standardFadeIn(fade, Ease.INOUTSINE), entry.player);
     }
 
     /** Picu kejadian yang terlewati sejak tick lalu (termasuk saat animasi kembali ke awal loop). */
@@ -123,6 +157,9 @@ final class LobbyAnimator {
             if (!crossed) continue;
             if (event.kind.equals("shot")) {
                 LobbyFx.fire(player);
+            } else if (DropCutscene.isMember(player)) {
+                // Gerakan cutscene: tembakan pistol kiri, hitstop, impact, efek, bunyi gerakan.
+                DropCutscene.animEvent(player, event.kind);
             } else {
                 LobbyFx.reloadSound(player, event.kind);
             }
@@ -145,10 +182,17 @@ final class LobbyAnimator {
         return events;
     }
 
+    /** Pratinjau: paksa animasi {@code name} ke pemain sendiri ({@code null} = kembali ke pose lobby). */
+    static void force(String name) {
+        forced = name;
+        restartAll();
+    }
+
     /** Animasi dimulai ulang dari awal (mis. setelah sumber daya dimuat ulang). */
     static void restartAll() {
         for (Entry entry : ENTRIES.values()) {
             entry.current = null;
+            entry.drop = null;
         }
     }
 }

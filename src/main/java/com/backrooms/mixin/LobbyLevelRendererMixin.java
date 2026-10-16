@@ -30,11 +30,23 @@ public abstract class LobbyLevelRendererMixin {
                               MultiBufferSource buffers) {
     }
 
+    /** Di jurang cutscene perkenalan tidak ada langit (latar Poolrooms punya langit siang yang membuatnya abu-abu). */
+    @Inject(method = "renderSky", at = @At("HEAD"), cancellable = true)
+    private void backrooms$noSkyInAbyss(CallbackInfo ci) {
+        if (com.backrooms.client.lobby.DropCutscene.darkVoid()) ci.cancel();
+    }
+
+    /** Jauh di jurang cutscene perkenalan blok dunia tidak digambar (struktur set di bawah lantai tampak seperti tiang). */
+    @Inject(method = "renderChunkLayer", at = @At("HEAD"), cancellable = true)
+    private void backrooms$noTerrainInAbyss(CallbackInfo ci) {
+        if (com.backrooms.client.lobby.DropCutscene.hideTerrain()) ci.cancel();
+    }
+
     @Inject(method = "renderEntity", at = @At("HEAD"), cancellable = true)
     private void backrooms$lobbySlot(Entity entity, double camX, double camY, double camZ, float partialTick, PoseStack poseStack,
                                      MultiBufferSource buffers, CallbackInfo ci) {
         if (backrooms$shifting) return;
-        Vec3 offset = LobbyClient.renderOffset(entity);
+        Vec3 offset = LobbyClient.renderOffset(entity, partialTick);
         if (offset == null) return;
         backrooms$shifting = true;
         try {

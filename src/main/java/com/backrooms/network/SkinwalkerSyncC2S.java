@@ -8,11 +8,12 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.function.Supplier;
 
 /**
- * Klien &rarr; server, gabungan tiga paket C2S asli yang dipakai Skinwalker:
+ * Klien &rarr; server, gabungan paket C2S asli yang dipakai Skinwalker dan Smiler:
  * <ul>
  *   <li>{@link Kind#BEING_CAPTURED}: {@code SyncServerComponent "beingCaptured"} (jumpscare selesai);</li>
  *   <li>{@link Kind#TARGET_ENTITY}: {@code TargetEntitySync} (entity yang sedang dilihat, -1 = tidak ada);</li>
- *   <li>{@link Kind#SEE_SKINWALKER}: {@code SeeActiveSkinwalkerSync} (korban terlihat di layar).</li>
+ *   <li>{@link Kind#SEE_SKINWALKER}: {@code SeeActiveSkinwalkerSync} (korban terlihat di layar);</li>
+ *   <li>{@link Kind#GLITCH}: {@code SyncServerComponent "glitch"} (dilihat Smiler, darah berkurang).</li>
  * </ul>
  */
 public record SkinwalkerSyncC2S(Kind kind, int value) {
@@ -20,7 +21,8 @@ public record SkinwalkerSyncC2S(Kind kind, int value) {
     public enum Kind {
         BEING_CAPTURED,
         TARGET_ENTITY,
-        SEE_SKINWALKER
+        SEE_SKINWALKER,
+        GLITCH
     }
 
     public static void encode(SkinwalkerSyncC2S msg, FriendlyByteBuf buf) {
@@ -50,6 +52,7 @@ public record SkinwalkerSyncC2S(Kind kind, int value) {
                     }
                 }
                 case SEE_SKINWALKER -> playerComponent.setCanSeeActiveSkinWalkerTarget(msg.value != 0);
+                case GLITCH -> playerComponent.setShouldInflictGlitchDamage(msg.value != 0);
             }
         });
         ctx.get().setPacketHandled(true);

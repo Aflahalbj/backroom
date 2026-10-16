@@ -18,8 +18,8 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Uji klien otomatis khusus development ({@code gradlew runClient -Pclienttest=true}):
- * masuk ke world uji, menjalani lobby (pose, latar, room, START, noclip,
- * intro), berkunjung ke tiap level, menyalakan/mematikan senter dan efek
+ * masuk ke world uji, menjalani lobby (pose, latar, room, START, cutscene
+ * perkenalan, intro), berkunjung ke tiap level, menyalakan/mematikan senter dan efek
  * kamera, mengambil screenshot, lalu menutup game. Tidak aktif di permainan
  * biasa.
  */
@@ -39,6 +39,11 @@ public final class ClientSelfTest {
         if (!Boolean.getBoolean("backrooms.clienttest")) return;
         if ("release".equals(System.getProperty("backrooms.skinwalkertest"))) {
             skinwalkerRelease();
+            MinecraftForge.EVENT_BUS.addListener(ClientSelfTest::onTick);
+            return;
+        }
+        if ("levels".equals(System.getProperty("backrooms.skinwalkertest"))) {
+            levels();
             MinecraftForge.EVENT_BUS.addListener(ClientSelfTest::onTick);
             return;
         }
@@ -92,9 +97,11 @@ public final class ClientSelfTest {
         lobby(LobbyActionC2S.Action.START, 0);
         until("room membangun", () -> LobbyClient.room() != null && LobbyClient.room().state() != RoomState.WAITING, 200);
         shot(10, "room_building");
-        until("noclip", () -> LobbyClient.noclipTime() >= 0L, 12000);
-        shot(30, "noclip_sink");
-        until("intro jatuh", IntroCutscene::isPlaying, 400);
+        until("cutscene perkenalan", com.backrooms.client.lobby.DropCutscene::isRunning, 12000);
+        shot(40, "drop_rumble");
+        shot(36, "drop_fall");
+        shot(60, "drop_member");
+        until("intro jatuh", IntroCutscene::isPlaying, 800);
         shot(70, "intro_fall");
         until("judul intro", IntroCutscene::showTitle, 400);
         shot(20, "intro_title");
@@ -288,6 +295,186 @@ public final class ClientSelfTest {
         step(20, () -> {
             LOGGER.info("[clienttest] selesai");
             Minecraft.getInstance().stop();
+        });
+    }
+
+    /**
+     * Event/anomali Level 1 dan Poolrooms plus Skinwalker di kedua level itu:
+     * blackout + Smiler (glitch, damage, hilang disorot senter), flicker, ambience,
+     * siklus sunset Poolrooms + air asam, lalu Skinwalker muncul sendiri setelah
+     * {@code SKINWALKER_EVENTS} event (dipicu lewat {@code /backroom event}) dan lampu/langitnya.
+     */
+    private static void levels() {
+        until("lobby siap", LobbyClient::isReady, 6000);
+        step(1, () -> Minecraft.getInstance().options.pauseOnLostFocus = false);
+        // ---- Level 1
+        command(20, "backroom gotolevel1");
+        until("di level 1", () -> CameraEffect.isInLevel(com.backrooms.world.BackroomsLevel.LEVEL1) && !LobbyClient.isActive(), 2400);
+        command(100, "difficulty normal");
+        command(5, "gamemode survival");
+        command(5, "effect give @s minecraft:instant_health 1 10 true");
+        command(5, "kill @e[type=spb-revamped:skin_walker]");
+        command(5, "backroom flashlight off");
+        until("sisa jumpscare habis", () -> !com.backrooms.component.PlayerComponent.get(Minecraft.getInstance().player).isBeingCaptured(), 400);
+        step(1, () -> levelState("level1_awal"));
+        command(5, "backroom event sunset");
+        command(5, "backroom event intercom");
+        command(5, "backroom event blackout");
+        step(20, () -> levelState("level1_blackout"));
+        shot(1, "level1_blackout");
+        // Smiler muncul sendiri (1/10 per pemain per tick setelah 80 tick).
+        until("smiler muncul", () -> smilersNear() > 0, 400);
+        step(1, () -> levelState("level1_smiler_alami"));
+        command(5, "kill @e[type=spb-revamped:smiler]");
+        command(5, "effect give @s minecraft:instant_health 1 10 true");
+        command(5, "summon spb-revamped:smiler ^ ^ ^4");
+        shot(15, "level1_smiler");
+        step(30, () -> levelState("level1_glitch_30"));
+        shot(1, "level1_glitch");
+        step(40, () -> levelState("level1_glitch_70"));
+        until("smiler hilang (liveTime)", () -> smilersNear() == 0, 300);
+        step(1, () -> levelState("level1_smiler_hilang"));
+        until("glitch reda", () -> com.backrooms.component.PlayerComponent.get(Minecraft.getInstance().player).getGlitchTimer() <= 0.0F, 200);
+        step(1, () -> levelState("level1_glitch_reda"));
+        // Disorot senter: harus langsung hilang (jauh sebelum 100 tick).
+        command(5, "effect give @s minecraft:instant_health 1 10 true");
+        command(5, "backroom flashlight on");
+        command(5, "summon spb-revamped:smiler ^ ^ ^5");
+        step(12, () -> levelState("level1_senter_12"));
+        until("smiler hilang (senter)", () -> smilersNear() == 0, 300);
+        step(1, () -> levelState("level1_senter_hilang"));
+        command(5, "backroom flashlight off");
+        // Blackout selesai lebih awal (event baru) -> lampu nyala, Smiler yang tersisa hilang.
+        command(5, "summon spb-revamped:smiler ^ ^ ^6");
+        command(5, "backroom event flicker");
+        step(5, () -> levelState("level1_flicker"));
+        command(5, "backroom event ambience");
+        step(5, () -> levelState("level1_ambience"));
+        step(200, () -> levelState("level1_akhir"));
+        // ---- Skinwalker Level 1
+        skinwalkerIn(com.backrooms.world.BackroomsLevel.LEVEL1, "gotolevel1", "level1");
+        // ---- Poolrooms
+        command(20, "backroom gotopoolrooms");
+        until("di poolrooms", () -> CameraEffect.isInLevel(com.backrooms.world.BackroomsLevel.POOLROOMS), 2400);
+        command(60, "gamemode survival");
+        command(5, "effect give @s minecraft:instant_health 1 10 true");
+        // Titik masuk Poolrooms ada di air; regenerasi supaya tidak mati saat air asam (damage tetap tercatat).
+        command(5, "effect give @s minecraft:regeneration 1000000 4 true");
+        step(5, () -> levelState("pool_awal"));
+        shot(1, "pool_noon");
+        command(5, "backroom event blackout");
+        for (String name : new String[]{"dusk", "midnight", "dawn", "noon2"}) {
+            command(5, "backroom event sunset");
+            step(80, () -> levelState("pool_" + name + "_transisi"));
+            step(130, () -> levelState("pool_" + name));
+            shot(1, "pool_" + name);
+            // Air asam: berdiri di air 2 detik.
+            command(5, "effect give @s minecraft:instant_health 1 10 true");
+            command(20, "setblock ~ ~ ~ minecraft:water");
+            step(40, () -> levelState("pool_" + name + "_air"));
+            command(1, "setblock ~ ~ ~ minecraft:air");
+        }
+        command(5, "backroom event ambience");
+        // ---- Skinwalker Poolrooms
+        skinwalkerIn(com.backrooms.world.BackroomsLevel.POOLROOMS, "gotopoolrooms", "pool");
+        step(20, () -> {
+            LOGGER.info("[clienttest] selesai");
+            Minecraft.getInstance().stop();
+        });
+    }
+
+    private static int smilersNear() {
+        Minecraft client = Minecraft.getInstance();
+        return client.level.getEntitiesOfClass(com.backrooms.entity.custom.SmilerEntity.class, client.player.getBoundingBox().inflate(40.0D)).size();
+    }
+
+    /**
+     * Skinwalker muncul sendiri di {@code level} setelah {@code SKINWALKER_EVENTS} event, berubah wujud,
+     * membunuh fake player, lalu korban dilepas; lampu/langit dicatat di tiap tahap.
+     */
+    private static void skinwalkerIn(com.backrooms.world.BackroomsLevel level, String go, String tag) {
+        java.util.function.Supplier<com.backrooms.component.PlayerComponent> me =
+                () -> com.backrooms.component.PlayerComponent.get(Minecraft.getInstance().player);
+        command(10, "fakeplayer remove bob");
+        command(10, "fakeplayer spawn bob");
+        command(80, "execute as bob run backroom " + go);
+        command(60, "tp bob @s");
+        command(10, "gamemode survival bob");
+        command(10, "gamemode survival");
+        step(5, () -> onServer(server -> {
+            var player = server.getPlayerList().getPlayer(Minecraft.getInstance().player.getUUID());
+            com.backrooms.compat.voicechat.BackroomsVoicechatPlugin.speakingTime.put(player.getUUID(), 0.0F);
+            // Fake player tidak punya klien: kalau dia yang ditangkap, spectator-nya jatuh menembus lantai.
+            var bob = server.getPlayerList().getPlayerByName("bob");
+            if (bob != null) com.backrooms.compat.voicechat.BackroomsVoicechatPlugin.speakingTime.put(bob.getUUID(), 1000.0F);
+            var events = com.backrooms.world.events.WorldEvents.get(player.serverLevel(), player.getX());
+            // Sekali per level per room (flag "skinwalkerDone"); world uji dipakai berulang.
+            events.done = false;
+            LOGGER.info("[clienttest] {} sebelum event: done={} players={}", tag, events.done,
+                    events.players().stream().map(p -> p.getGameProfile().getName()).toList());
+        }));
+        step(40, () -> levelState(tag + "_sw_sebelum"));
+        for (int i = 0; i < com.backrooms.world.events.WorldEvents.SKINWALKER_EVENTS; i++) {
+            command(10, "backroom event ambience");
+        }
+        until(tag + " ditangkap skinwalker", () -> me.get().hasBeenCaptured(), 1200);
+        step(1, () -> levelState(tag + "_sw_ditangkap"));
+        until(tag + " jumpscare selesai", () -> !me.get().isBeingCaptured(), 600);
+        shot(40, tag + "_sw_captured");
+        step(5, () -> onServer(server -> {
+            var l = server.getLevel(level.dimension());
+            l.getEntities(com.backrooms.entity.ModEntities.SKIN_WALKER.get(), e -> true)
+                    .forEach(e -> e.getSkinWalkerComponent().setBeginReveal(true));
+        }));
+        // Reveal: tick 110 flicker, 195 mati, 220 nyala.
+        step(115, () -> levelState(tag + "_reveal_110"));
+        step(85, () -> levelState(tag + "_reveal_195"));
+        shot(1, tag + "_reveal_gelap");
+        step(30, () -> levelState(tag + "_reveal_225"));
+        // Pelepasan setelah membunuh: tick 1 flicker, 80 mati, 105 nyala.
+        until(tag + " dilepas (lampu mati)", () -> me.get().isBeingReleased(), 2400);
+        step(1, () -> levelState(tag + "_release_gelap"));
+        shot(1, tag + "_release_gelap");
+        until(tag + " dilepas", () -> !me.get().hasBeenCaptured() && !Minecraft.getInstance().player.isSpectator(), 600);
+        step(5, () -> levelState(tag + "_release_selesai"));
+        // Sekali per level per room: tidak muncul lagi walau event terus berjalan.
+        command(10, "fakeplayer remove bob");
+        command(10, "fakeplayer spawn bob");
+        command(80, "execute as bob run backroom " + go);
+        command(60, "tp bob @s");
+        command(10, "gamemode survival bob");
+        command(10, "gamemode survival");
+        command(5, "backroom event ambience");
+        step(200, () -> levelState(tag + "_sw_tidak_muncul_lagi"));
+        command(10, "fakeplayer remove bob");
+    }
+
+    /** Status level di klien dan server untuk salinan level tempat pemain ini berada. */
+    private static void levelState(String tag) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.player == null) return;
+        var component = com.backrooms.component.PlayerComponent.get(client.player);
+        var engine = ((com.backrooms.mixin.SoundManagerAccessor) client.getSoundManager()).getSoundEngine();
+        var ambient = ((com.backrooms.mixin.SoundEngineAccessor) engine).getInstanceBySource().get(net.minecraft.sounds.SoundSource.AMBIENT)
+                .stream().map(sound -> sound.getLocation().getPath()).sorted().toList();
+        LOGGER.info("[clienttest] {} klien: light={} time={} transisi={} malamSW={} dayTime={} noon={} glitch={} hp={} smiler={} ambient={}",
+                tag, com.backrooms.client.skinwalker.ClientWorldEvents.lightState(), com.backrooms.client.skinwalker.ClientWorldEvents.timeOfDay(),
+                com.backrooms.client.skinwalker.ClientWorldEvents.isSunsetTransitioning(), com.backrooms.client.skinwalker.ClientWorldEvents.isSkinwalkerNight(),
+                com.backrooms.client.render.PoolroomsDayCycle.dayTime, com.backrooms.client.skinwalker.ClientWorldEvents.isNoon(),
+                component.getGlitchTimer(), client.player.getHealth(), smilersNear(), ambient);
+        onServer(server -> {
+            var player = server.getPlayerList().getPlayer(client.player.getUUID());
+            if (player == null) return;
+            var events = com.backrooms.world.events.WorldEvents.get(player.serverLevel(), player.getX());
+            var smilerList = player.serverLevel().getEntitiesOfClass(com.backrooms.entity.custom.SmilerEntity.class, player.getBoundingBox().inflate(40.0D));
+            var damage = player.getLastDamageSource();
+            LOGGER.info("[clienttest] {} server: level={} light={} time={} asam={} dmgTerakhir={} diAir={} event={} done={} hp={} glitchDmg={} smiler={} hilang={} skinwalker={}",
+                    tag, events.which(), events.getLightState(), events.getTimeOfDay(), events.isWaterAcidic(),
+                    damage == null ? "-" : damage.getMsgId(), player.isInWater(),
+                    events.getActiveEvent() == null ? "-" : events.getActiveEvent().getClass().getSimpleName(), events.done,
+                    player.getHealth(), com.backrooms.component.PlayerComponent.get(player).shouldInflictGlitchDamage,
+                    smilerList.size(), smilerList.stream().map(com.backrooms.entity.custom.SmilerEntity::shouldDisappear).toList(),
+                    events.activeSkinWalkerEntity != null);
         });
     }
 

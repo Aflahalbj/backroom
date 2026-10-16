@@ -53,9 +53,9 @@ import java.util.function.BooleanSupplier;
  *       dari tiap lampu neon.</li>
  * </ul>
  *
- * Fitur dari level/entitas yang tidak ada di port ini (warp Level 2,
- * glitch smiler) memakai nilai "diam" seperti saat fitur itu tidak aktif di
- * mod aslinya. Jumpscare Skinwalker ikut berjalan seperti aslinya.
+ * Fitur dari level yang tidak ada di port ini (warp Level 2) memakai nilai
+ * "diam" seperti saat fitur itu tidak aktif di mod aslinya. Jumpscare
+ * Skinwalker dan glitch Smiler ikut berjalan seperti aslinya.
  */
 public final class CameraEffect {
 
@@ -116,6 +116,7 @@ public final class CameraEffect {
         });
         com.backrooms.client.lobby.LobbyClient.init();
         com.backrooms.client.skinwalker.SkinWalkerClient.init();
+        LevelClient.init();
         com.backrooms.client.lobby.AnimDev.init();
         ClientSelfTest.init();
         DevWorld.init();
@@ -186,8 +187,8 @@ public final class CameraEffect {
                     shaderProgram.setMatrix("prevProjMat", PreviousUniforms.prevProjMat);
                     shaderProgram.setVector("prevCameraPos", PreviousUniforms.prevCameraPos);
                 }
-                shaderProgram.setFloat("MotionBlurStrength", ClientConfig.motionBlurStrength());
-                shaderProgram.setFloat("DistortionStrength", ClientConfig.vhsDistortionMultiplier());
+                shaderProgram.setFloat("MotionBlurStrength", com.backrooms.client.lobby.DropCutscene.motionBlur(ClientConfig.motionBlurStrength()));
+                shaderProgram.setFloat("DistortionStrength", ClientConfig.vhsDistortionMultiplier() + com.backrooms.client.lobby.DropCutscene.distortionPulse());
             }
 
             shaderProgram = context.getShader(SSAO);
@@ -202,7 +203,8 @@ public final class CameraEffect {
                 shaderProgram.setInt("blackScreen", !blackScreen && !player.isInWall()
                         && !com.backrooms.component.PlayerComponent.get(player).isBeingReleased() ? 0 : 1);
                 shaderProgram.setInt("TogglePuddles", level1 ? 1 : 0);
-                shaderProgram.setVector("shadowColor", PoolroomsDayCycle.getLightColor());
+                // Kabut cahaya matahari Poolrooms memudar saat jatuh di cutscene perkenalan (jurang tanpa bayangan jadi abu-abu).
+                shaderProgram.setVector("shadowColor", PoolroomsDayCycle.getLightColor().mul(com.backrooms.client.lobby.DropCutscene.sunHaze()));
             }
 
             shaderProgram = context.getShader(MIXED_SHADER);
@@ -214,7 +216,7 @@ public final class CameraEffect {
 
             shaderProgram = context.getShader(GLITCH_SHADER);
             if (shaderProgram != null) {
-                shaderProgram.setFloat("glitchTime", 0.0F);
+                shaderProgram.setFloat("glitchTime", Math.max(com.backrooms.component.PlayerComponent.get(player).getGlitchTimer(), com.backrooms.client.lobby.DropCutscene.glitch()));
             }
         }
 

@@ -247,14 +247,13 @@ public class SkinWalkerEntity extends Monster implements GeoEntity, GeoAnimatabl
                 this.level().playSound(null, this, ModSounds.event("skinwalker_reveal"), SoundSource.HOSTILE, 100.0F, 1.0F);
             }
 
-            if (this.ticks == 110 && backroomsLevel == BackroomsLevel.LEVEL0) {
-                level.setLightState(LightState.FLICKER);
+            // Aslinya lampu hanya diubah di Level 0; Level 1 dan Poolrooms tambahan port ini (skinwalkerLights).
+            if (this.ticks == 110) {
+                level.skinwalkerLights(LightState.FLICKER);
             }
 
             if (this.ticks == 195) {
-                if (backroomsLevel == BackroomsLevel.LEVEL0) {
-                    level.setLightState(LightState.OFF);
-                }
+                level.skinwalkerLights(LightState.OFF);
 
                 for (ServerPlayer player : level.players()) {
                     ModNetwork.turnOffFlashlight(player);
@@ -262,9 +261,7 @@ public class SkinWalkerEntity extends Monster implements GeoEntity, GeoAnimatabl
             }
 
             if (this.ticks >= 220) {
-                if (backroomsLevel == BackroomsLevel.LEVEL0) {
-                    level.setLightState(LightState.ON);
-                }
+                level.skinwalkerLights(LightState.ON);
 
                 this.component.setBeginReveal(false);
                 this.component.setTrueForm(true);

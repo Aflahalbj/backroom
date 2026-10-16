@@ -32,6 +32,13 @@ import java.util.List;
  *   muzzle X Y Z      geser letak moncong senjata yang dipakai (ruang tangan, blok)
  *   fire              satu tembakan sekarang
  *   holdflash         tahan/lepas api moncong (untuk dilihat)
+ *   anim NAME|off     paksa animasi NAME (mis. drop_ancam) ke karakter sendiri
+ *   drop              putar cutscene perkenalan room (tanpa pindah ke Backrooms)
+ *   dropmove NAME|off paksa gerakan aksi anggota pertama di cutscene pratinjau
+ *   dropcam D AZ EL H|off  kamera anggota pertama di cutscene pratinjau (jarak, sudut, elevasi, tinggi)
+ *   dropshots NAME t1,t2  putar cutscene perkenalan, screenshot di ms t1, t2, ... sejak mulai
+ *   cmd PERINTAH      jalankan perintah (tanpa "/")
+ *   action NAMA [N]   kirim aksi lobby (LobbyActionC2S.Action)
  *   quit
  * </pre>
  * Selesai menjalankan semua perintah, {@code run/animtest/done.txt} ditulis.
@@ -51,6 +58,9 @@ public final class AnimDev {
     private static int shotIndex;
     private static int shotClock;
     private static int batch;
+    private static String dropName;
+    private static long[] dropTimes;
+    private static int dropIndex;
 
     private AnimDev() {}
 
@@ -70,6 +80,22 @@ public final class AnimDev {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || !LobbyClient.isReady()) return;
         poll();
+        if (dropTimes != null) {
+            long time = DropCutscene.isRunning() ? DropCutscene.time() : Long.MAX_VALUE;
+            if (DropCutscene.isRunning() && client.level != null && client.level.getGameTime() % 10L == 0L) {
+                LOGGER.info("[animtest] fps {} pada {} ms", client.getFps(), time);
+            }
+            while (dropIndex < dropTimes.length && time >= dropTimes[dropIndex]) {
+                String name = dropName + "_" + String.format("%05d", dropTimes[dropIndex]);
+                Screenshot.grab(client.gameDirectory, "anim_" + name + ".png", client.getMainRenderTarget(), m -> {});
+                dropIndex++;
+            }
+            if (dropIndex >= dropTimes.length) {
+                dropTimes = null;
+                waitTicks = Math.max(waitTicks, 10);
+            }
+            return;
+        }
         if (shotTicks != null) {
             shotClock++;
             while (shotIndex < shotTicks.length && shotClock >= shotTicks[shotIndex]) {
@@ -89,12 +115,12 @@ public final class AnimDev {
             return;
         }
         if (waitTicks > 0) {
-            waitTicks--;
+            if (--waitTicks == 0 && QUEUE.isEmpty()) markDone();
             return;
         }
         if (QUEUE.isEmpty()) return;
         run(client, QUEUE.poll());
-        if (QUEUE.isEmpty() && shotTicks == null && waitTicks == 0) markDone();
+        if (QUEUE.isEmpty() && shotTicks == null && dropTimes == null && waitTicks == 0) markDone();
     }
 
     private static void poll() {
@@ -107,7 +133,9 @@ public final class AnimDev {
             Files.deleteIfExists(DONE);
             batch++;
             for (String line : lines) {
-                if (!line.isBlank() && !line.startsWith("#")) QUEUE.add(line.trim());
+                // PowerShell (Set-Content -Encoding utf8) menaruh BOM di awal file.
+                line = line.replace("\uFEFF", "").trim();
+                if (!line.isEmpty() && !line.startsWith("#")) QUEUE.add(line);
             }
             LOGGER.info("[animtest] batch {}: {} perintah", batch, QUEUE.size());
         } catch (IOException e) {
@@ -143,6 +171,27 @@ public final class AnimDev {
                     Double.parseDouble(parts[2]), Double.parseDouble(parts[3]));
             case "fire" -> {
                 if (client.player != null) LobbyFx.fire(client.player);
+            }
+            case "anim" -> LobbyAnimator.force(parts[1].equals("off") ? null : parts[1]);
+            case "drop" -> LobbyClient.previewDrop();
+            case "dropmove" -> DropCutscene.forcedMove = parts[1].equals("off") ? null : parts[1];
+            case "dropcam" -> DropCutscene.forcedCam = parts[1].equals("off") ? null : new double[]{
+                    Double.parseDouble(parts[1]), Double.parseDouble(parts[2]),
+                    Double.parseDouble(parts[3]), Double.parseDouble(parts[4])};
+            case "dropshots" -> {
+                LobbyClient.previewDrop();
+                dropName = parts[1];
+                String[] times = parts[2].split(",");
+                dropTimes = new long[times.length];
+                for (int i = 0; i < times.length; i++) dropTimes[i] = Long.parseLong(times[i]);
+                dropIndex = 0;
+            }
+            case "cmd" -> {
+                if (client.player != null) client.player.connection.sendCommand(line.substring(4).trim());
+            }
+            case "action" -> {
+                LobbyActionC2S.Action action = LobbyActionC2S.Action.valueOf(parts[1]);
+                LobbyClient.send(action, parts.length > 2 ? Integer.parseInt(parts[2]) : 0);
             }
             case "quit" -> client.stop();
             default -> LOGGER.warn("[animtest] perintah tidak dikenal: {}", line);

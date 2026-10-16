@@ -79,6 +79,12 @@ public final class ClientSetup {
         event.registerBlockEntityRenderer(ModBlockEntities.FLUORESCENT_LIGHT.get(), FluorescentLightRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.THIN_FLUORESCENT_LIGHT.get(), ThinFluorescentLightRenderer::new);
         event.registerEntityRenderer(com.backrooms.entity.ModEntities.SKIN_WALKER.get(), com.backrooms.client.skinwalker.SkinWalkerRenderer::new);
+        event.registerEntityRenderer(com.backrooms.entity.ModEntities.SMILER.get(), com.backrooms.client.smiler.SmilerRenderer::new);
+    }
+
+    @SubscribeEvent
+    public static void onRegisterLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
+        event.registerLayerDefinition(com.backrooms.client.smiler.SmilerModel.LAYER, com.backrooms.client.smiler.SmilerModel::getTexturedModelData);
     }
 
     @SubscribeEvent

@@ -179,7 +179,8 @@ public final class RoomManager {
         reclaimOwner(room, player);
         changed(player.getServer(), room);
         if (room.state == RoomState.PLAYING) {
-            LobbyManager.noclip(player);
+            // Menyusul sendirian: cutscene perkenalannya hanya dia.
+            LobbyManager.noclip(player, List.of(player.getUUID()));
         }
     }
 
@@ -397,10 +398,16 @@ public final class RoomManager {
             room.state = RoomState.PLAYING;
             room.progress = 100;
             changed(server, room);
-            // Pemain dan host sama-sama "tenggelam"; mendaratnya beda (lihat LobbyManager.land).
+            // Pemain dan host sama-sama ikut cutscene jatuh; mendaratnya beda (lihat LobbyManager.land).
+            // Urutan perkenalan = urutan barisan di lobby (pemain dulu, host di ujung).
+            List<UUID> lineup = new ArrayList<>();
+            for (UUID id : LobbyManager.lineup(room)) {
+                ServerPlayer member = server.getPlayerList().getPlayer(id);
+                if (member != null && LobbyManager.inLobby(member)) lineup.add(id);
+            }
             for (UUID id : List.copyOf(room.members)) {
                 ServerPlayer member = server.getPlayerList().getPlayer(id);
-                if (member != null) LobbyManager.noclip(member);
+                if (member != null) LobbyManager.noclip(member, lineup.contains(id) ? lineup : List.of(id));
             }
         }, () -> {
             room.state = RoomState.WAITING;

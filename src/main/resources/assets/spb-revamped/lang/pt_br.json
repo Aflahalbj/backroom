@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Vá em frente",
   "skinwalker.flavor-text.taunt2": "Tente chamar os seus amigos (T)",
   "skinwalker.flavor-text.taunt3": "Se não já é óbvio o bastante, sua pele foi roubada. ",
-  "skinwalker.flavor-text.taunt4": "Não seja chato. Não mande mensagens pros outros jogadores"
+  "skinwalker.flavor-text.taunt4": "Não seja chato. Não mande mensagens pros outros jogadores",
+  "death.attack.acid": "%1$s derreteu em Ácido!",
+  "death.attack.smiler": "%1$s foi morto por um Smiler!"
 }

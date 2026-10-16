@@ -12,7 +12,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 /**
  * Di lobby karakter memegang senjata pilihannya (TACZ) di tangan kanan dan
- * tangan kirinya kosong, apa pun isi inventorinya.
+ * tangan kirinya kosong (kecuali pistol gerakan akimbo di cutscene
+ * perkenalan), apa pun isi inventorinya.
  */
 @Mixin(ItemInHandLayer.class)
 public abstract class ItemInHandLayerMixin {
@@ -30,7 +31,8 @@ public abstract class ItemInHandLayerMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;getOffhandItem()Lnet/minecraft/world/item/ItemStack;"))
     private ItemStack backrooms$lobbyOffhand(LivingEntity entity) {
         if (entity instanceof Player player && LobbyClient.inLobbyScene(player)) {
-            return ItemStack.EMPTY;
+            // Gerakan akimbo di cutscene perkenalan: pistol di tangan kiri.
+            return LobbyWeapons.stack(com.backrooms.client.lobby.DropCutscene.offhandGun(player));
         }
         return entity.getOffhandItem();
     }

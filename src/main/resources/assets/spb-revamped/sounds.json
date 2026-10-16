@@ -322,5 +322,40 @@
     "sounds": [
       "spb-revamped:walker/walker-start-screech"
     ]
+  },
+  "intro_whoosh": {
+    "sounds": [
+      "spb-revamped:intro/intro_whoosh"
+    ]
+  },
+  "intro_subdrop": {
+    "sounds": [
+      "spb-revamped:intro/intro_subdrop"
+    ]
+  },
+  "intro_hit_brass": {
+    "sounds": [
+      "spb-revamped:intro/intro_hit_brass"
+    ]
+  },
+  "intro_hit_hard": {
+    "sounds": [
+      "spb-revamped:intro/intro_hit_hard"
+    ]
+  },
+  "intro_hit_drama": {
+    "sounds": [
+      "spb-revamped:intro/intro_hit_drama"
+    ]
+  },
+  "intro_hit_braam": {
+    "sounds": [
+      "spb-revamped:intro/intro_hit_braam"
+    ]
+  },
+  "intro_swell": {
+    "sounds": [
+      "spb-revamped:intro/intro_swell"
+    ]
   }
 }

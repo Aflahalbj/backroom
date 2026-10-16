@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Vas-y",
   "skinwalker.flavor-text.taunt2": "Essaye d'appeler tes amis (T)",
   "skinwalker.flavor-text.taunt3": "Si ce n’est pas déjà évident, ta peau a été volée.",
-  "skinwalker.flavor-text.taunt4": "Ne sois pas un idiot. Ne MP aucun autre joueur"
+  "skinwalker.flavor-text.taunt4": "Ne sois pas un idiot. Ne MP aucun autre joueur",
+  "death.attack.acid": "%1$s a brûlé dans l'acide !",
+  "death.attack.smiler": "%1$s a été tué par un Smiler !"
 }

@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Endavant",
   "skinwalker.flavor-text.taunt2": "Prova de cridar als teus col·legues (T)",
   "skinwalker.flavor-text.taunt3": "Per si no era obvi, ja t'han pres la pell.",
-  "skinwalker.flavor-text.taunt4": "No siguis dolent. No enviïs missatges als altres jugadors"
+  "skinwalker.flavor-text.taunt4": "No siguis dolent. No enviïs missatges als altres jugadors",
+  "death.attack.acid": "%1$s s’ha cremat amb àcid!",
+  "death.attack.smiler": "%1$s ha estat eliminat per un Smiler!"
 }

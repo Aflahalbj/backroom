@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Давай, попробуй.",
   "skinwalker.flavor-text.taunt2": "Попробуй позвать друзей (T).",
   "skinwalker.flavor-text.taunt3": "Если ты ещё не понял, твою кожу уже забрали. ",
-  "skinwalker.flavor-text.taunt4": "Не будь придурком. Не пиши другим игрокам в ЛС."
+  "skinwalker.flavor-text.taunt4": "Не будь придурком. Не пиши другим игрокам в ЛС.",
+  "death.attack.acid": "%1$s сгорел в кислоте!",
+  "death.attack.smiler": "%1$s был убит Улыбающимся!"
 }

@@ -1,0 +1,10 @@
+Sound cutscene perkenalan room (dipotong, diberi fade, dan dinormalkan untuk mod ini).
+Semua dari freesound.org dengan lisensi Creative Commons 0 (domain publik).
+
+intro_whoosh.ogg     "Sliding Trailer Woosh" oleh qubodup      https://freesound.org/s/171255/
+intro_subdrop.ogg    "Sub Drop Smooth.wav" oleh newagesoup     https://freesound.org/s/428073/
+intro_hit_brass.ogg  "Apocalyptic Cinematic Brass Braam Impact" oleh brktkrgll  https://freesound.org/s/856173/
+intro_hit_hard.ogg   "Hard Cinematic Hit" oleh Vendarro        https://freesound.org/s/328448/
+intro_hit_drama.ogg  "Dramatic Hit" oleh qubodup               https://freesound.org/s/222517/
+intro_hit_braam.ogg  "BRAAMS and TIMPANI" oleh XHALE303        https://freesound.org/s/592041/
+intro_swell.ogg      "Cinematic Impact" oleh deleted_user_3277771  https://freesound.org/s/177242/

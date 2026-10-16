@@ -28,7 +28,7 @@ if '--dev' in sys.argv:
 TACZ = os.path.join(ROOT, 'tools', 'tacz_rifle.json')
 
 STEP = 2
-PARTS = ('head', 'torso', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg', 'rightItem')
+PARTS = ('head', 'torso', 'body', 'rightArm', 'leftArm', 'rightLeg', 'leftLeg', 'rightItem', 'leftItem')
 AXES = ('pitch', 'yaw', 'roll', 'x', 'y', 'z', 'bend', 'axis')
 DEFAULTS = {
     'head': (0.0, 0.0, 0.0), 'torso': (0.0, 0.0, 0.0), 'body': (0.0, 0.0, 0.0),
@@ -164,7 +164,7 @@ class Tacz:
 ANGLE_AXES = ('pitch', 'yaw', 'roll')
 
 
-def compile_anim(name, length, fn, loop=True, intro=0, intro_fn=None, shots=(), sounds=()):
+def compile_anim(name, length, fn, loop=True, intro=0, intro_fn=None, shots=(), sounds=(), step=STEP):
     """Sampel pose tiap STEP tick jadi keyframe LINEAR.
 
     Kalau ada intro_fn, tick 0..intro dimainkan sekali (intro_fn(t)), lalu
@@ -174,7 +174,7 @@ def compile_anim(name, length, fn, loop=True, intro=0, intro_fn=None, shots=(), 
     ditandai dengan "turn" (Player Animator memutar penuh, bukan balik arah).
     """
     total = intro + length
-    ticks = list(range(0, total + 1, STEP))
+    ticks = list(range(0, total + 1, step))
     if ticks[-1] != total:
         ticks.append(total)
     if intro and intro not in ticks:
@@ -689,6 +689,401 @@ def ready_intro(target):
     return fn
 
 
+# ------------------------------------------------------------ cutscene jatuh
+#
+# Cutscene perkenalan room (client/lobby/DropCutscene): lantai lobby bolong,
+# semua anggota jatuh, lalu satu per satu diperkenalkan ke kamera dalam
+# gerak lambat. drop_jatuh diputar semua anggota sejak cutscene mulai;
+# drop_<pose> mulai saat giliran anggota itu (tick 0 = kamera mulai menyambar
+# ke dia, puncak aksinya sekitar tick 9..16 saat gerak lambat); drop_selam
+# untuk bagian akhir (semua menyelam ke kegelapan). Tiap animasi: bagian aksi
+# sekali jalan (intro), lalu menahan pose akhirnya sambil diterpa angin (loop).
+#
+# Seluruh badan diputar lewat "body" (poros 0,7 blok di atas kaki); angka
+# "y" mengangkat pusat putar supaya putaran terlihat di sekitar pinggang.
+# Pitch "body" NEGATIF = condong ke depan (positif = terjengkang ke belakang).
+
+DROP_HOLD = 40
+
+
+def flutter(p, t, amount=1.0, period=DROP_HOLD):
+    """Angin menerpa selama jatuh: anggota badan bergetar halus. Semua
+    gelombangnya kelipatan `period`, jadi loop tidak patah di sambungan."""
+    def w(k, ph):
+        return wave(t, period / k, ph)
+    p.add('rightLeg', pitch=5 * amount * w(2, 0.1), roll=2 * amount * w(3, 0.3), bend=4 * amount * w(2, 0.35))
+    p.add('leftLeg', pitch=5 * amount * w(2, 0.6), roll=-2 * amount * w(3, 0.8), bend=4 * amount * w(2, 0.85))
+    p.add('rightArm', pitch=1.6 * amount * w(4, 0.2), yaw=1.2 * amount * w(5, 0.5))
+    p.add('leftArm', pitch=1.6 * amount * w(4, 0.2), yaw=1.2 * amount * w(5, 0.5))
+    p.add('head', yaw=2.5 * amount * w(1, 0.4), roll=1.5 * amount * w(2, 0.9))
+    p.add('body', roll=3 * amount * w(1, 0.25), pitch=2 * amount * w(1, 0.7))
+    return p
+
+
+def sky_legs(p, w=1.0, asym=1.0):
+    """Kaki penerjun: lutut menekuk ke belakang, tidak simetris supaya hidup."""
+    p.add('rightLeg', pitch=14 * w, bend=58 * w, yaw=6 * w, roll=5 * w)
+    p.add('leftLeg', pitch=(-8 + 4 * (1 - asym)) * w, bend=(34 + 24 * (1 - asym)) * w, yaw=-4 * w, roll=-4 * w)
+    return p
+
+
+def fall_hold(t, aim=0.45, lean=14):
+    """Pose jatuh stabil memegang senapan: condong ke depan, kaki penerjun."""
+    p = combat(t, aim, facing=10)
+    p['rightLeg'] = {}
+    p['leftLeg'] = {}
+    sky_legs(p)
+    p.add('body', pitch=-lean, y=0.05)
+    p.add('torso', bend=-6)
+    p.add('head', pitch=-8 - 0.4 * lean)
+    return p
+
+
+# drop_jatuh, tick sejak cutscene mulai (sama dengan DropTiming): gemuruh
+# 0..28, lantai runtuh di 28, menggantung (hang time) 28..35, jatuh dari 35.
+# Tick penting (sama dengan DropTiming): getaran pertama 12, lantai runtuh 52, mulai jatuh 60.
+QUAKE_TREMOR = 12
+QUAKE_BREAK = 52
+QUAKE_SHIFT = QUAKE_BREAK - 28
+JATUH_INTRO = 80 + QUAKE_SHIFT
+
+
+def jatuh(t):
+    """Gempa lalu jatuh. Sampai lantai runtuh: getaran pertama mengagetkan,
+    lengan kiri terentang menjaga keseimbangan, kaki melebar dan menekuk,
+    badan terhuyung mengikuti guncangan, menunduk ke retakan, mendongak ke
+    debu yang jatuh dari plafon, lalu merendah. Sesudahnya: jatuh_runtuh."""
+    if t >= QUAKE_BREAK:
+        return jatuh_runtuh(t - QUAKE_SHIFT)
+    # Bagian gemuruh lama diregangkan sepanjang gempa (berakhir sama persis di saat runtuh).
+    p = jatuh_runtuh(t * 28.0 / QUAKE_BREAK)
+    q = window(t, QUAKE_TREMOR + 2, QUAKE_BREAK - 4, 4)
+    jolt = kick(t - QUAKE_TREMOR, 1.0, 3.0)
+    k = clamp01((t - QUAKE_TREMOR) / float(QUAKE_BREAK - QUAKE_TREMOR))
+    # Kaget di getaran pertama: badan tersentak, kepala menoleh cepat.
+    p.add('body', y=0.03 * jolt, roll=4 * jolt)
+    p.add('head', pitch=-8 * jolt, yaw=-14 * jolt)
+    # Menjaga keseimbangan: lengan kiri lepas dari senapan, terentang ke samping.
+    blend(p, 'leftArm', 0.85 * q, pitch=-40, yaw=0, roll=-48, x=0, y=0, z=0, bend=-18)
+    p.add('rightArm', pitch=10 * q)
+    # Kaki melebar, terhuyung bergantian (melangkah menahan guncangan).
+    p.add('rightLeg', roll=8 * q, pitch=10 * q * math.sin(t * 0.7))
+    p.add('leftLeg', roll=-8 * q, pitch=-10 * q * math.sin(t * 0.7 + 1.3))
+    p.add('body', roll=(2.0 + 4.0 * k) * q * math.sin(t * 0.55), x=0.03 * q * math.sin(t * 0.43))
+    # Mata: ke retakan di lantai, ke plafon (debu), lalu ke bawah lagi.
+    p.add('head', pitch=q * keyed(t, [(0, 0), (16, 20), (26, 24), (31, -30), (37, -26), (43, 28), (52, 30)]))
+    return all_parts_ready(p)
+
+
+def jatuh_runtuh(t):
+    """Gemuruh: menunduk, lutut menekuk (antisipasi). Lantai hilang: badan
+    kaku menggantung sesaat sambil menatap ke bawah. Jatuh: lengan dan
+    senapan tertarik ke atas oleh angin, kaki menendang, kepala mendongak ke
+    lubang; lalu menguasai diri ke pose penerjun memegang senapan."""
+    if t >= JATUH_INTRO - QUAKE_SHIFT:
+        return all_parts_ready(flutter(fall_hold(t + QUAKE_SHIFT), t + QUAKE_SHIFT))
+    aim = keyed(t, [(0, 0.1), (28, 0.1), (31, 0.5, snap), (40, 0.2), (62, 0.2), (74, 0.45), (80, 0.45)])
+    stand = combat(t, aim, facing=10)
+    hold = fall_hold(t)
+    # 0 = berdiri di lantai, 1 = pose jatuh stabil.
+    st = keyed(t, [(0, 0), (35, 0), (80, 1)])
+    p = lerp_pose(stand, hold, st)
+    # Gemuruh makin kuat; badan berguncang.
+    shake = window(t, 3, 27, 3) * (0.35 + 0.65 * smooth(t / 28))
+    p.add('body', x=0.014 * shake * math.sin(t * 2.9), z=0.008 * shake * math.sin(t * 3.7),
+          roll=1.4 * shake * math.sin(t * 2.3))
+    # Antisipasi: merendah, lalu lantai hilang -> kaki lurus kaku (menggantung).
+    crouch = keyed(t, [(0, 0), (8, 0.3), (26, 1), (29, 0.15, ease_out), (35, 0)])
+    p.add('rightLeg', bend=28 * crouch)
+    p.add('leftLeg', bend=32 * crouch)
+    p.add('body', y=-0.07 * crouch)
+    p.add('torso', bend=7 * crouch)
+    # Kepala: melirik kiri-kanan, menunduk ke lantai yang retak, lalu mendongak saat jatuh.
+    p.add('head', yaw=keyed(t, [(0, 0), (6, -26), (14, 22), (22, 0)]) * window(t, 0, 24, 3))
+    p.add('head', pitch=keyed(t, [(0, 0), (18, 0), (25, 26), (33, 42), (40, -24, ease_out), (58, -10), (80, 0)]))
+    # Kaget saat lantai lenyap: bahu terangkat, lengan sedikit naik (hang).
+    hang = keyed(t, [(0, 0), (28, 0), (30, 1, snap), (35, 1), (38, 0)])
+    p.add('rightArm', pitch=-14 * hang)
+    p.add('leftArm', pitch=-18 * hang, roll=-8 * hang)
+    p.add('body', y=0.03 * hang)
+    # Jatuh: angin menyeret lengan/senapan ke atas (drag), kaki menendang tak beraturan.
+    drag = keyed(t, [(0, 0), (35, 0), (40, 1, ease_out), (56, 0.8), (72, 0)])
+    p.add('rightArm', pitch=-42 * drag, roll=10 * drag)
+    p.add('leftArm', pitch=-58 * drag, roll=-22 * drag, yaw=-10 * drag)
+    p.add('rightItem', pitch=14 * drag)
+    kickw = window(t, 37, 64, 5)
+    p.add('rightLeg', pitch=26 * kickw * math.sin(t * 0.9), bend=30 * kickw * (0.6 + 0.4 * math.sin(t * 1.3)))
+    p.add('leftLeg', pitch=-26 * kickw * math.sin(t * 0.9 + 1.1), bend=30 * kickw * (0.6 + 0.4 * math.sin(t * 1.1 + 2)))
+    # Badan terjengkang ke belakang sesaat lalu kembali condong.
+    p.add('body', pitch=keyed(t, [(0, 0), (35, 0), (42, 22, ease_out), (60, 8), (80, 0)]))
+    p.add('body', roll=keyed(t, [(0, 0), (36, 0), (46, 9), (58, -5), (72, 0)]))
+    p.add('torso', bend=keyed(t, [(0, 0), (35, 0), (42, -10), (66, 0)]))
+    return all_parts_ready(flutter(p, t + QUAKE_SHIFT, smooth((t - 50) / 30)))
+
+
+def fall_style(t, style):
+    """Pose jatuh stabil per kepribadian (loop 40 tick, mulus di sambungan):
+    'pro' penerjun melengkung, 'duduk' duduk santai senapan di bahu,
+    'perut' belly-to-earth: menelungkup melengkung, senapan di depan dada."""
+    if style == 'pro':
+        return fall_hold(t)
+    if style == 'duduk':
+        p = combat(t, 0.0, facing=14)
+        p['rightLeg'] = {}
+        p['leftLeg'] = {}
+        p.add('rightLeg', pitch=-88, bend=92, yaw=8)
+        p.add('leftLeg', pitch=-80, bend=70, yaw=-18, roll=-6)
+        blend(p, 'rightArm', 1.0, pitch=-150, yaw=-10, roll=8, x=0, y=0, z=0, bend=-110)
+        blend(p, 'rightItem', 1.0, pitch=60, yaw=0, roll=0)
+        blend(p, 'leftArm', 1.0, pitch=-25, yaw=0, roll=-30, x=0, y=0, z=0, bend=-80)
+        p.add('torso', bend=10)
+        p.add('head', roll=8, yaw=14 + 10 * wave(t, DROP_HOLD, 0.2))
+        p.add('body', pitch=6, y=0.1)
+        # Kaki kiri mengetuk-ngetuk (aksi sekunder).
+        p.add('leftLeg', bend=10 * wave(t, DROP_HOLD / 4.0))
+        return p
+    # perut: posisi dasar terjun bebas (belly-to-earth), punggung melengkung.
+    p = combat(t, 0.15, facing=0)
+    p['rightLeg'] = {}
+    p['leftLeg'] = {}
+    p.add('body', pitch=-62, y=0.22)
+    p.add('torso', bend=-10)
+    p.add('head', pitch=-34)
+    p.add('rightLeg', pitch=22, bend=62, roll=10)
+    p.add('leftLeg', pitch=18, bend=70, roll=-10)
+    return p
+
+
+def jatuh_style(style):
+    """drop_jatuh dengan kepribadian lain: sama sampai menguasai diri (tick 55),
+    lalu berbaur ke gaya jatuhnya sendiri."""
+    def intro(t):
+        base = jatuh(t)
+        w = smooth((t - 52 - QUAKE_SHIFT) / 26.0)
+        if w <= 0:
+            return base
+        return all_parts_ready(lerp_pose(base, flutter(fall_style(t, style), t, w), w))
+
+    def loop(t):
+        return all_parts_ready(flutter(fall_style(JATUH_INTRO + t, style), JATUH_INTRO + t))
+    return intro, loop
+
+
+SALVO_SHOTS = [13, 16]
+
+
+def salvo(t):
+    """Akhir: semua serempak membidik lurus ke kamera dengan kaki terbuka
+    seperti bintang, dua tembakan bersamaan, lalu menahan bidikan."""
+    aim = keyed(t, [(0, 0.2), (6, 0.1, ease_in), (10, 1, snap), (DROP_HOLD, 1)])
+    p = combat(t, aim, facing=0)
+    p['rightLeg'] = {}
+    p['leftLeg'] = {}
+    spread = keyed(t, [(0, 0.3), (8, 0.1), (11, 1, snap), (DROP_HOLD, 1)])
+    p.add('rightLeg', pitch=-10, bend=24, roll=22 * spread)
+    p.add('leftLeg', pitch=6, bend=34, roll=-22 * spread)
+    p.add('body', pitch=-8 * spread, y=0.05)
+    p.add('head', pitch=-4 * kick(t - 9, 1, 3))
+    tremor(p, t, 0.5)
+    fire(p, t, SALVO_SHOTS, power=1.5)
+    return all_parts_ready(from_fall(t, p, 4))
+
+
+def hold_loop(intro, at):
+    """Loop: pose akhir intro (tick `at`) diterpa angin."""
+    def fn(t):
+        return all_parts_ready(flutter(intro(at, settle_only=True), t))
+    return fn
+
+
+def windy(intro, at):
+    """Intro yang angin-nya masuk perlahan menjelang akhir, sama persis dengan
+    awal loop di tick `at` (flutter periodik), jadi sambungannya mulus."""
+    def fn(t):
+        return all_parts_ready(flutter(intro(t), t, smooth((t - (at - 16)) / 16.0)))
+    return fn
+
+
+# ----- pose hero. Masing-masing fn(t, settle_only=False) untuk t = 0..DROP_INTRO.
+
+DROP_INTRO = 40
+
+
+def from_fall(t, p, ramp=6):
+    """Awal aksi dibaurkan dari pose jatuh umum (supaya sambungannya tidak patah)."""
+    if t >= ramp:
+        return p
+    return lerp_pose(fall_hold(t), p, smooth(t / ramp))
+
+
+def selam(t):
+    """Bagian akhir: menyelam kepala lebih dulu ke kegelapan, senapan
+    dipeluk di dada, kaki lurus rapat ke atas, lengan siku menempel badan."""
+    dive = keyed(t, [(0, 0), (3, -0.08, ease_in), (12, 1, ease_out), (DROP_HOLD, 1)])
+    p = combat(t, 0.0, facing=0)
+    p['rightLeg'] = {}
+    p['leftLeg'] = {}
+    p.add('rightLeg', pitch=4 * dive, bend=8 * dive, roll=-3 * dive)
+    p.add('leftLeg', pitch=8 * dive, bend=14 * dive, roll=3 * dive)
+    p.add('rightArm', pitch=10 * dive)
+    p.add('leftArm', pitch=10 * dive)
+    p.add('body', pitch=-165 * dive, y=0.45 * smooth(dive))
+    p.add('head', pitch=-35 * dive)
+    return all_parts_ready(p)
+
+
+# ------------------------------------------------------------ gerak halus
+
+# Jadwal satu giliran anggota, SAMA dengan DropTiming (Java): kamera berpindah
+# 0..800 ms, waktu melambat 500..800, bullet time sampai 2500, kembali normal
+# 2500..2900. Animasi aksi "dipanggang" dengan gerak lambat ini: tiap tick
+# nyata punya keyframe sendiri, jadi gerak lambatnya mulus (Player Animator
+# memutarnya dengan kecepatan normal).
+SLOT_MS = 3200
+SLOW = 0.3
+SLOW_IN = (500, 800)
+SLOW_OUT = (2500, 2900)
+SLOT_TICKS = SLOT_MS // 50
+
+
+def speed_at(ms):
+    if ms < SLOW_IN[0]:
+        return 1.0
+    if ms < SLOW_IN[1]:
+        return 1.0 + (SLOW - 1.0) * smooth((ms - SLOW_IN[0]) / (SLOW_IN[1] - SLOW_IN[0]))
+    if ms < SLOW_OUT[0]:
+        return SLOW
+    if ms < SLOW_OUT[1]:
+        return SLOW + (1.0 - SLOW) * smooth((ms - SLOW_OUT[0]) / (SLOW_OUT[1] - SLOW_OUT[0]))
+    return 1.0
+
+
+def scene_ticks():
+    """Waktu adegan (tick) di awal tiap tick nyata 0..SLOT_TICKS."""
+    out = [0.0]
+    acc = 0.0
+    for ms in range(SLOT_MS):
+        acc += speed_at(ms) / 50.0
+        if (ms + 1) % 50 == 0:
+            out.append(acc)
+    return out
+
+
+SCENE = scene_ticks()
+
+
+def real_tick(scene):
+    """Tick nyata pertama yang waktu adegannya sudah mencapai `scene`."""
+    for i, s_ in enumerate(SCENE):
+        if s_ >= scene:
+            return i
+    return len(SCENE) - 1
+
+
+# Frekuensi alami pegas tiap bagian (rad/detik): badan berat dan lambat,
+# tangan dan senjata lebih lincah, kaki paling malas (terseret angin).
+SPRING = {'body': 7.0, 'torso': 9.0, 'head': 11.0, 'rightArm': 12.0, 'leftArm': 10.0,
+          'rightLeg': 6.5, 'leftLeg': 6.0, 'rightItem': 16.0, 'leftItem': 16.0}
+
+
+def spring_filter(targets, dt=0.05, substeps=8):
+    """Setiap sumbu mengikuti targetnya seperti pegas teredam kritis: tidak ada
+    lonjakan atau patahan, dan bagian yang lebih lambat tertinggal sedikit di
+    belakang badan (follow-through dan overlapping action dengan sendirinya)."""
+    state = {}
+    prev = targets[0]
+    out = []
+    for target in targets:
+        res = Pose()
+        for part, axes in target.items():
+            w = SPRING.get(part, 10.0)
+            for axis, goal in axes.items():
+                key = (part, axis)
+                start = prev.get(part, {}).get(axis, goal)
+                if key not in state:
+                    state[key] = [goal, 0.0]
+                x, v = state[key]
+                h = dt / substeps
+                for k in range(substeps):
+                    g = start + (goal - start) * (k + 1) / substeps
+                    acc = w * w * (g - x) - 2.0 * w * v
+                    v += acc * h
+                    x += v * h
+                state[key] = [x, v]
+                res.setdefault(part, {})[axis] = x
+        out.append(res)
+        prev = target
+    return out
+
+
+def bake(pose_fn, ticks, recoil=None):
+    """Pose tiap tick nyata: pose_fn(waktu_adegan), dihaluskan pegas, lalu
+    hentakan recoil (yang memang harus tajam) ditumpuk sesudahnya."""
+    times = SCENE[:ticks + 1]
+    raw = [all_parts_ready(pose_fn(s_)) for s_ in times]
+    smooth_poses = spring_filter(raw)
+    out = []
+    for s_, p in zip(times, smooth_poses):
+        if recoil is not None:
+            p = recoil(p, s_)
+        out.append(all_parts_ready(p))
+    return out
+
+
+def hero_moves():
+    """Gerakan aksi dari tools/drop_moves.py (lihat docstring modul itu)."""
+    import drop_moves
+    return drop_moves.MOVES
+
+
+def compile_hero(move):
+    """Satu gerakan aksi: SLOT_TICKS tick nyata gerak lambat yang dipanggang,
+    lalu loop menahan pose akhir diterpa angin."""
+    shots = move['shots']
+    power = move.get('power', 1.0)
+    climb = move.get('climb', 1.0)
+
+    def recoil(p, s_):
+        return fire(p, s_, shots, power, climb)
+    frames = bake(move['pose'], SLOT_TICKS, recoil)
+    end = frames[-1]
+    # Angin masuk perlahan di 16 tick terakhir, sama persis dengan awal loop.
+    intro = [all_parts_ready(flutter(f, t, smooth((t - (SLOT_TICKS - 16)) / 16.0))) for t, f in enumerate(frames)]
+    events = [(kind, real_tick(at)) for kind, at in move.get('events', [])]
+    compile_anim(move['name'], DROP_HOLD, lambda t: all_parts_ready(flutter(end, t)),
+                 intro=SLOT_TICKS, intro_fn=lambda t: intro[min(t, SLOT_TICKS)],
+                 shots=[real_tick(x) for x in shots], sounds=events, step=1)
+
+
+def compile_baked(name, intro_fn, intro_len, loop_fn, **kw):
+    """Animasi biasa (waktu nyata) yang bagian intro-nya dihaluskan pegas."""
+    times = list(range(intro_len + 1))
+    smooth_poses = spring_filter([all_parts_ready(intro_fn(t)) for t in times])
+    compile_anim(name, DROP_HOLD, loop_fn, intro=intro_len,
+                 intro_fn=lambda t: all_parts_ready(smooth_poses[min(t, intro_len)]), step=1, **kw)
+
+
+def compile_drops(only):
+    def want(name):
+        return not only or name in only
+    if want('drop_jatuh'):
+        compile_baked('drop_jatuh', jatuh, JATUH_INTRO, lambda t: jatuh(JATUH_INTRO + t))
+    for style in ('duduk', 'perut'):
+        name = 'drop_jatuh_' + style
+        if want(name):
+            intro, loop = jatuh_style(style)
+            compile_baked(name, intro, JATUH_INTRO, loop)
+    if want('drop_salvo'):
+        compile_baked('drop_salvo', windy(salvo, DROP_HOLD), DROP_HOLD,
+                      lambda t: all_parts_ready(flutter(salvo(DROP_HOLD), t)), shots=SALVO_SHOTS)
+    if want('drop_selam'):
+        compile_baked('drop_selam', windy(selam, DROP_HOLD), DROP_HOLD,
+                      lambda t: all_parts_ready(flutter(selam(DROP_HOLD), t)))
+    for move in hero_moves():
+        if want(move['name']):
+            compile_hero(move)
+
+
 ANIMS = [
     ('lobby_siaga', 240, siaga, True),
     ('lobby_bidik', 180, bidik, True),
@@ -698,7 +1093,14 @@ ANIMS = [
     ('lobby_ancam', 220, ancam, True),
 ]
 
-OBSOLETE = ('lobby_santai', 'lobby_melambai', 'lobby_pundak', 'lobby_tegap')
+OBSOLETE = ('lobby_santai', 'lobby_melambai', 'lobby_pundak', 'lobby_tegap',
+            # gerakan cutscene versi lama (diganti tools/drop_moves.py)
+            'drop_santai', 'drop_terjun', 'drop_reload', 'drop_terbalik', 'drop_putar', 'drop_ancam',
+            'drop_hujan', 'drop_lempar', 'drop_kursi', 'drop_salto', 'drop_kata', 'drop_lengkung',
+            'drop_koin', 'drop_rebahan', 'drop_jojo', 'drop_bor', 'drop_mendarat', 'drop_kartwil',
+            'drop_jatuh_guling', 'drop_halo', 'drop_jaga', 'drop_tukik', 'drop_awas', 'drop_isi', 'drop_luncur',
+            'drop_isyarat', 'drop_gulir', 'drop_siap', 'drop_samping', 'drop_runduk', 'drop_langit', 'drop_toleh',
+            'drop_low', 'drop_profil', 'drop_press', 'drop_obor', 'drop_radio', 'drop_pompa', 'drop_bahu', 'drop_rapat')
 
 if __name__ == '__main__':
     only = [a for a in sys.argv[1:] if not a.startswith('--')]
@@ -707,6 +1109,7 @@ if __name__ == '__main__':
             path = os.path.join(d, name + '.json')
             if os.path.exists(path):
                 os.remove(path)
+    compile_drops(only)
     for name, length, fn, intro in ANIMS:
         if only and name not in only:
             continue

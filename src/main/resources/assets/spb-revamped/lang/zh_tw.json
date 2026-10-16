@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "繼續啊",
   "skinwalker.flavor-text.taunt2": "試試呼喚你的朋友（按T）",
   "skinwalker.flavor-text.taunt3": "如果還不夠明顯的話——你的皮膚已經被偷走了",
-  "skinwalker.flavor-text.taunt4": "別犯傻，不要偷偷告訴其他玩家"
+  "skinwalker.flavor-text.taunt4": "別犯傻，不要偷偷告訴其他玩家",
+  "death.attack.acid": "%1$s 在酸液中燒死了！",
+  "death.attack.smiler": "%1$s 被笑靨殺害！"
 }

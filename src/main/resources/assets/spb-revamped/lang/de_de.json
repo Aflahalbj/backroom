@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Nur zu, versuch's ruhig",
   "skinwalker.flavor-text.taunt2": "Versuche doch deine Freunde zu rufen (T)",
   "skinwalker.flavor-text.taunt3": "Falls es dir noch nicht aufgefallen ist, dein Körper wurde gestohlen. ",
-  "skinwalker.flavor-text.taunt4": "Sei kein Spielverderber. Schreibe keine Direktnachrichten an andere Spieler"
+  "skinwalker.flavor-text.taunt4": "Sei kein Spielverderber. Schreibe keine Direktnachrichten an andere Spieler",
+  "death.attack.acid": "%1$s verbrannte in Säure!",
+  "death.attack.smiler": "%1$s wurde von einem Smiler getötet!"
 }

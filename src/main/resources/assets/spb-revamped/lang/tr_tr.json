@@ -63,5 +63,7 @@
   "skinwalker.flavor-text.taunt1": "Hadi devam et",
   "skinwalker.flavor-text.taunt2": "Arkadaşlarını çağırmayı dene (T)",
   "skinwalker.flavor-text.taunt3": "Hala fark etmediysen vücudun çalındı. ",
-  "skinwalker.flavor-text.taunt4": "Salak olma. Başka oyunculara DM atma"
+  "skinwalker.flavor-text.taunt4": "Salak olma. Başka oyunculara DM atma",
+  "death.attack.acid": "%1$s Asitte yandı!",
+  "death.attack.smiler": "%1$s Smiler tarafından öldürüldü!"
 }
